@@ -1,5 +1,5 @@
 """Celery tasks for dispatching agents."""
-import asyncio
+from app.agents.crew_factory import run_agent_for_task_sync
 
 try:
     from celery import shared_task
@@ -15,21 +15,10 @@ except ImportError:
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def run_agent(self, agent_type: str, context: dict | None = None) -> dict:
     """Run any registered agent by type. Generic dispatcher for Celery Beat."""
-    from app.core.database import async_session
-    from app.agents import agent_map
-
-    agent_class = agent_map.get(agent_type)
-    if not agent_class:
-        raise ValueError(f"Unknown agent type: {agent_type}")
-
-    async def _run():
-        async with async_session() as db:
-            agent = agent_class()
-            return await agent.run(db, context)
-
     try:
-        result = asyncio.run(_run())
-        return result
+        return run_agent_for_task_sync(agent_type, context or {})
+    except ValueError:
+        raise
     except Exception as exc:
         self.retry(exc=exc)
 

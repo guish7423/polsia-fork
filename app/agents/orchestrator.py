@@ -38,7 +38,7 @@ class OrchestratorAgent(BasePolsiaAgent):
             ),
         })
 
-        llm_result = self.call_llm(prompt)
+        llm_result = await self.call_llm_async(prompt)
 
         # Create tasks from LLM output
         tasks_planned = 0

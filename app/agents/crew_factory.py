@@ -1,10 +1,14 @@
 """Crew factory — maps agent types to agent classes and dispatches tasks."""
+import asyncio
 
 from app.agents import agent_map
+from app.core.database import async_session
 
 
-def run_agent_for_task(agent_type: str, task: dict, context: dict | None = None) -> dict:
-    """Run an agent for a given task. Returns summary dict.
+async def run_agent_for_task(
+    agent_type: str, task: dict, context: dict | None = None
+) -> dict:
+    """Run an agent for a given task async. Returns summary dict.
 
     Args:
         agent_type: Type of agent to run (e.g. "social_media").
@@ -21,7 +25,15 @@ def run_agent_for_task(agent_type: str, task: dict, context: dict | None = None)
     if not agent_cls:
         raise ValueError(f"Unknown agent type: {agent_type}")
 
-    # Create instance and run (sync dispatch)
     agent = agent_cls()
-    result = agent.run_sync(task, context)
-    return result
+    async with async_session() as db:
+        result = await agent.run(db, {"task": task, **(context or {})})
+        await db.commit()
+        return result
+
+
+def run_agent_for_task_sync(
+    agent_type: str, task: dict, context: dict | None = None
+) -> dict:
+    """Sync wrapper for run_agent_for_task (for Celery compatibility)."""
+    return asyncio.run(run_agent_for_task(agent_type, task, context))
