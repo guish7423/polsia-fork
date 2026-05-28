@@ -38,7 +38,7 @@ export default function MemoryPage() {
           disabled={loading}
           className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm disabled:opacity-50"
         >
-          {loading ? "Searching…" : "Search"}
+          {loading ? t("memory.searching") : t("memory.search")}
         </button>
       </div>
       <div className="space-y-3">

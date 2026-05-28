@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 export type Locale = "en" | "zh";
 
@@ -110,6 +110,8 @@ const ZH: Record<string, string> = {
   "memory.category": "分类",
   "memory.all": "全部",
   "memory.no_results": "无匹配结果",
+  "memory.search": "搜索",
+  "memory.searching": "搜索中…",
 };
 
 const EN: Record<string, string> = {
@@ -197,6 +199,8 @@ const EN: Record<string, string> = {
   "memory.category": "Category",
   "memory.all": "All",
   "memory.no_results": "No matching results",
+  "memory.search": "Search",
+  "memory.searching": "Searching…",
 };
 
 const LOCALES: Record<Locale, Record<string, string>> = { en: EN, zh: ZH };
@@ -214,7 +218,14 @@ const Ctx = createContext<I18nCtx>({
 });
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("polsia-locale");
+      if (saved === "zh" || saved === "en") return saved;
+    }
+    return "en";
+  });
+  useEffect(() => localStorage.setItem("polsia-locale", locale), [locale]);
   const t = useCallback(
     (key: string) => LOCALES[locale][key] ?? EN[key] ?? key,
     [locale],
