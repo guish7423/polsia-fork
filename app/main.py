@@ -80,6 +80,7 @@ from app.api.v1.config import router as config_router
 from app.api.v1.social import router as social_router
 from app.api.v1.memory import router as memory_router
 from app.api.v1.ws import router as ws_router
+from app.api.v1.usage import router as usage_router
 
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
@@ -89,3 +90,4 @@ app.include_router(config_router, prefix="/api/v1")
 app.include_router(social_router, prefix="/api/v1")
 app.include_router(memory_router, prefix="/api/v1")
 app.include_router(ws_router)
+app.include_router(usage_router, prefix="/api/v1")
