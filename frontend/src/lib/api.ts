@@ -70,3 +70,15 @@ export type FinanceSummary = {
   stripe_balance_cents: number;
   last_snapshot_date: string | null;
 };
+
+export type MeInfo = {
+  email: string;
+  api_key: string;
+  plan: string;
+  status: string;
+  active: boolean;
+  agents_limit: number;
+  tasks_monthly_limit: number;
+  onboarding_completed: boolean;
+  current_period_end: string | null;
+};

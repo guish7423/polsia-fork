@@ -4,12 +4,9 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 export type Locale = "en" | "zh";
 
 const ZH: Record<string, string> = {
-  // Layout
   "app.title": "Polsia — 智能商业代理",
   "app.desc": "24/7 自动驾驶您的公司运营",
   "brand.subtitle": "AI 商业代理",
-
-  // Sidebar nav
   "nav.dashboard": "仪表盘",
   "nav.agents": "代理",
   "nav.tasks": "任务",
@@ -20,8 +17,6 @@ const ZH: Record<string, string> = {
   "nav.memory": "记忆库",
   "nav.settings": "设置",
   "nav.lang": "English",
-
-  // Dashboard
   "dash.title": "仪表盘",
   "dash.tasks_today": "今日任务",
   "dash.completed": "已完成",
@@ -31,15 +26,12 @@ const ZH: Record<string, string> = {
   "dash.churn_rate": "流失率",
   "dash.agent_status": "代理状态",
   "dash.live_activity": "实时动态",
-
-  // Agents page
   "agents.title": "代理",
   "agents.run_now": "立即运行",
   "agents.triggering": "运行中…",
   "agents.last_run": "上次运行",
   "agents.tasks_today": "今日任务数",
   "agents.never": "从未",
-  // Agent descriptions
   "agent.orchestrator": "生成每日任务计划和晚间总结",
   "agent.business_planning": "分析策略，更新 KPI，识别机会",
   "agent.competitor_research": "研究竞争对手和市场定位",
@@ -49,8 +41,6 @@ const ZH: Record<string, string> = {
   "agent.code_generation": "编写代码，提交到 GitHub，部署上线",
   "agent.customer_support": "读取收件箱并草拟客户回复",
   "agent.finance": "监控 Stripe 收入、支出和告警",
-
-  // Tasks page
   "tasks.title": "任务",
   "tasks.empty": "暂无任务。代理将在运行周期中自动创建任务。",
   "tasks.priority": "优先级",
@@ -58,8 +48,6 @@ const ZH: Record<string, string> = {
   "status.in_progress": "进行中",
   "status.pending": "待处理",
   "status.failed": "失败",
-
-  // Finance page
   "finance.title": "财务",
   "finance.last_snapshot": "上次快照",
   "finance.arr": "年经常收入",
@@ -67,8 +55,6 @@ const ZH: Record<string, string> = {
   "finance.stripe_balance": "Stripe 余额",
   "finance.total_ad_spend": "广告总支出",
   "finance.expenses_month": "本月支出",
-
-  // Settings page
   "settings.title": "设置",
   "settings.saved": "设置已保存成功",
   "settings.save": "保存设置",
@@ -88,23 +74,15 @@ const ZH: Record<string, string> = {
   "settings.morning_cycle": "早晨周期小时 (UTC)",
   "settings.loading": "加载中…",
   "settings.failed": "加载配置失败",
-
-  // Social page
   "social.title": "社交媒体",
   "social.empty": "暂无社交媒体帖子。Social Media 代理将在运行周期中创建内容。",
   "social.scheduled": "计划中",
   "social.posted": "已发布",
   "social.failed_status": "失败",
-
-  // Outreach page
   "outreach.title": "邮件营销",
   "outreach.empty": "暂无邮件活动。Email Outreach 代理将在运行周期中创建活动。",
-
-  // Ads page
   "ads.title": "广告",
   "ads.empty": "暂无广告活动。Ads Management 代理将在运行周期中创建活动。",
-
-  // Memory page
   "memory.title": "记忆库",
   "memory.empty": "暂无记忆条目。代理将在运行中自动生成记忆。",
   "memory.category": "分类",
@@ -112,6 +90,31 @@ const ZH: Record<string, string> = {
   "memory.no_results": "无匹配结果",
   "memory.search": "搜索",
   "memory.searching": "搜索中…",
+  "onboard.title": "欢迎使用 Polsia",
+  "onboard.step1_title": "您的 API 密钥",
+  "onboard.step1_desc": "这是您的唯一 API 密钥，用于连接前端和您的应用。请妥善保管。",
+  "onboard.copy_key": "复制密钥",
+  "onboard.copied": "已复制！",
+  "onboard.step2_title": "设置公司",
+  "onboard.step2_desc": "填写公司信息，帮助 AI 代理更好地为您服务。",
+  "onboard.step3_title": "尝试运行代理",
+  "onboard.step3_desc": "点击下方按钮触发您的第一个 AI 代理任务！",
+  "onboard.trigger_agent": "运行 Orchestrator 代理",
+  "onboard.triggering": "运行中…",
+  "onboard.triggered": "代理已触发！",
+  "onboard.skip": "跳过，进入仪表盘",
+  "onboard.next": "下一步",
+  "onboard.finish": "开始使用",
+  "onboard.loading": "加载您的账户…",
+  "onboard.step": "步骤",
+  "onboard.of": "/",
+  "onboard.api_key_hint": "将此密钥保存到您的环境变量中：",
+  "onboard.config_hint": "您之后可以在设置页面修改这些信息。",
+  "onboard.welcome_msg": "Polsia 将帮助您自动驾驶公司运营。让我们快速完成设置。",
+  "onboard.agent_ready": "您的第一个代理已经开始运行！",
+  "settings.api_key": "API 密钥",
+  "settings.copy_key": "复制",
+  "settings.copied": "已复制",
 };
 
 const EN: Record<string, string> = {
@@ -201,6 +204,31 @@ const EN: Record<string, string> = {
   "memory.no_results": "No matching results",
   "memory.search": "Search",
   "memory.searching": "Searching…",
+  "onboard.title": "Welcome to Polsia",
+  "onboard.step1_title": "Your API Key",
+  "onboard.step1_desc": "This is your unique API key to connect the frontend and your app. Keep it safe.",
+  "onboard.copy_key": "Copy Key",
+  "onboard.copied": "Copied!",
+  "onboard.step2_title": "Company Setup",
+  "onboard.step2_desc": "Fill in your company info to help the AI agents serve you better.",
+  "onboard.step3_title": "Try Running an Agent",
+  "onboard.step3_desc": "Click below to trigger your first AI agent task!",
+  "onboard.trigger_agent": "Run Orchestrator Agent",
+  "onboard.triggering": "Triggering…",
+  "onboard.triggered": "Agent triggered!",
+  "onboard.skip": "Skip to Dashboard",
+  "onboard.next": "Next",
+  "onboard.finish": "Get Started",
+  "onboard.loading": "Loading your account…",
+  "onboard.step": "Step",
+  "onboard.of": "of",
+  "onboard.api_key_hint": "Save this key in your environment variables:",
+  "onboard.config_hint": "You can modify these later in Settings.",
+  "onboard.welcome_msg": "Polsia helps you run your company autonomously. Let's get you set up quickly.",
+  "onboard.agent_ready": "Your first agent is running!",
+  "settings.api_key": "API Key",
+  "settings.copy_key": "Copy",
+  "settings.copied": "Copied",
 };
 
 const LOCALES: Record<Locale, Record<string, string>> = { en: EN, zh: ZH };

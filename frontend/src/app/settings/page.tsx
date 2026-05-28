@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
+import { useEffect, useState, useCallback } from "react";
+import { api, type MeInfo } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 
 type Config = {
@@ -20,13 +20,28 @@ type Config = {
 export default function SettingsPage() {
   const { t } = useI18n();
   const [config, setConfig] = useState<Config | null>(null);
+  const [me, setMe] = useState<MeInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    api.get<Config>("/config").then(setConfig).finally(() => setLoading(false));
+    Promise.all([
+      api.get<Config>("/config"),
+      api.get<MeInfo>("/auth/me").catch(() => null),
+    ]).then(([cfg, meInfo]) => {
+      setConfig(cfg);
+      setMe(meInfo);
+    }).finally(() => setLoading(false));
   }, []);
+
+  const copyKey = useCallback(async () => {
+    if (!me?.api_key) return;
+    await navigator.clipboard.writeText(me.api_key);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [me]);
 
   const save = async () => {
     if (!config) return;
@@ -65,6 +80,22 @@ export default function SettingsPage() {
       {saved && (
         <div className="bg-green-900/50 border border-green-500 text-green-300 px-4 py-2 rounded text-sm">
           {t("settings.saved")}
+        </div>
+      )}
+
+      {/* API Key section */}
+      {me && (
+        <div className="bg-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="text-white font-semibold">{t("settings.api_key")}</h2>
+          <div className="bg-gray-900 rounded p-3 border border-gray-700">
+            <code className="text-sm text-indigo-300 break-all font-mono">{me.api_key}</code>
+          </div>
+          <button
+            onClick={copyKey}
+            className="px-4 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm"
+          >
+            {copied ? t("settings.copied") : t("settings.copy_key")}
+          </button>
         </div>
       )}
 

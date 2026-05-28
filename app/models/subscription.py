@@ -19,6 +19,7 @@ class Subscription(Base):
     agents_limit: Mapped[int] = mapped_column(Integer, server_default="3")
     tasks_monthly_limit: Mapped[int] = mapped_column(Integer, server_default="1000")
     active: Mapped[bool] = mapped_column(Boolean, server_default="false")
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, server_default="false")
     current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
