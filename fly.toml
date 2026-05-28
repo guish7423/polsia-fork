@@ -1,0 +1,33 @@
+app = "polsia-api"
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  healthcheck = { path = "/api/v1/health", interval = "30s", timeout = "5s" }
+
+[[services.ports]]
+  port = 80
+  handlers = ["http"]
+  force_https = true
+
+[[services.ports]]
+  port = 443
+  handlers = ["tls", "http"]
+
+[env]
+  DEBUG = "false"
+  LLM_API_MOCK = "true"
+  LLM_API_URL = "https://api.deepseek.com/v1"
+  LLM_MODEL = "deepseek-chat"
+  CHROMA_PERSIST_DIR = "/app/data/chroma"
+  REDIS_URL = ""
+  CELERY_BROKER_URL = ""
+  CELERY_RESULT_BACKEND = ""
+
+[mounts]
+  destination = "/app/data/chroma"
+  source = "chroma_data"
