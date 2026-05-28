@@ -31,9 +31,11 @@ class Settings(BaseSettings):
     morning_cycle_hour: int = 6
     evening_cycle_hour: int = 18
 
-    # Stripe
+    # Stripe / Billing
+    stripe_api_key: str = ""
     stripe_webhook_secret: str = ""
-    model_config = {"env_prefix": ""}
+    stripe_price_id_monthly: str = ""
+    stripe_price_id_yearly: str = ""
 
 
 settings = Settings()
