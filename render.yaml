@@ -6,7 +6,7 @@ databases:
     ipAllowList: []
 
 services:
-  # ─── Backend API (Docker) ────────────────────────────────────────────────────
+  # ─── Backend API (Docker) ──────────────────────────────────────────────
   - type: web
     name: polsia-api
     env: docker
@@ -25,11 +25,11 @@ services:
       - key: LLM_API_URL
         value: https://api.deepseek.com/v1
       - key: LLM_API_KEY
-        sync: false  # User to set in Dashboard
+        sync: false
       - key: LLM_MODEL
         value: deepseek-chat
       - key: REDIS_URL
-        value: ""  # No Redis in free tier — Celery disabled
+        value: ""
       - key: CELERY_BROKER_URL
         value: ""
       - key: CELERY_RESULT_BACKEND
@@ -43,9 +43,9 @@ services:
       mountPath: /app/data/chroma
       sizeGB: 1
 
-  # ─── Frontend (Static Site) ─────────────────────────────────────────────────
-  - type: static
-    name: polsia-frontend
+staticSites:
+  # ─── Frontend (Static Site) ────────────────────────────────────────────
+  - name: polsia-frontend
     repo: https://github.com/guish7423/polsia-fork
     branch: main
     buildCommand: cd frontend && npm ci && npm run build && npx next export -o out
