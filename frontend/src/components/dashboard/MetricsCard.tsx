@@ -1,18 +1,24 @@
+"use client";
+import { useI18n } from "@/lib/i18n";
+
 interface MetricsCardProps {
-  title: string;
+  title?: string;
+  titleKey?: string;
   value: string | number;
   subtitle?: string;
   trend?: "up" | "down" | "neutral";
   loading?: boolean;
 }
 
-export function MetricsCard({ title, value, subtitle, trend, loading }: MetricsCardProps) {
+export function MetricsCard({ title, titleKey, value, subtitle, trend, loading }: MetricsCardProps) {
+  const { t } = useI18n();
+  const displayTitle = titleKey ? t(titleKey) : (title ?? "");
   const trendColor =
     trend === "up" ? "text-green-400" : trend === "down" ? "text-red-400" : "text-gray-400";
 
   return (
     <div className="bg-gray-800 rounded-lg p-4">
-      <p className="text-gray-400 text-xs uppercase tracking-wider">{title}</p>
+      <p className="text-gray-400 text-xs uppercase tracking-wider">{displayTitle}</p>
       {loading ? (
         <div className="h-8 bg-gray-700 rounded animate-pulse mt-2" />
       ) : (

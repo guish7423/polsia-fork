@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { PageTitle, Text } from "@/components/PageTitle";
 
 type Post = { id: number; content: string; status: string; published_at: string | null; engagement: Record<string, number> | null };
 
@@ -10,9 +11,9 @@ export default async function SocialPage() {
   const posts = await getPosts();
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-bold text-white">Social Media</h1>
+      <PageTitle i18nKey="social.title" />
       <div className="space-y-3">
-        {posts.length === 0 && <p className="text-gray-400">No posts yet.</p>}
+        {posts.length === 0 && <p className="text-gray-400"><Text i18nKey="social.empty" /></p>}
         {posts.map((p) => (
           <div key={p.id} className="bg-gray-800 rounded-lg p-4">
             <p className="text-white">{p.content}</p>

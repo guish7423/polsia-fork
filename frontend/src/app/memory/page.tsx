@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 type Memory = { id: number; category: string; title: string; content: string; created_at: string };
 
 export default function MemoryPage() {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Memory[]>([]);
   const [loading, setLoading] = useState(false);
@@ -22,13 +24,13 @@ export default function MemoryPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">Memory</h1>
+      <h1 className="text-2xl font-bold text-white">{t("memory.title")}</h1>
       <div className="flex gap-3">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && search()}
-          placeholder="Search company memory…"
+          placeholder={t("memory.category") + "..."}
           className="flex-1 bg-gray-800 text-white rounded-lg px-4 py-2 border border-gray-700 focus:border-indigo-500 focus:outline-none"
         />
         <button
@@ -40,12 +42,11 @@ export default function MemoryPage() {
         </button>
       </div>
       <div className="space-y-3">
+        {results.length === 0 && query && <p className="text-gray-400">{t("memory.no_results")}</p>}
         {results.map((m) => (
           <div key={m.id} className="bg-gray-800 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs bg-indigo-600/30 text-indigo-300 px-2 py-0.5 rounded">
-                {m.category}
-              </span>
+              <span className="text-xs bg-indigo-600/30 text-indigo-300 px-2 py-0.5 rounded">{m.category}</span>
               <span className="text-gray-500 text-xs">{new Date(m.created_at).toLocaleDateString()}</span>
             </div>
             <p className="text-white font-medium text-sm">{m.title}</p>

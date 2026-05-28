@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 type Config = {
   name: string;
@@ -17,6 +18,7 @@ type Config = {
 };
 
 export default function SettingsPage() {
+  const { t } = useI18n();
   const [config, setConfig] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,12 +41,12 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) return <div className="p-6 text-gray-400">Loading…</div>;
-  if (!config) return <div className="p-6 text-red-400">Failed to load config</div>;
+  if (loading) return <div className="p-6 text-gray-400">{t("settings.loading")}</div>;
+  if (!config) return <div className="p-6 text-red-400">{t("settings.failed")}</div>;
 
-  const field = (label: string, key: keyof Config, type: "text" | "number" = "text") => (
+  const field = (labelKey: string, key: keyof Config, type: "text" | "number" = "text") => (
     <div key={key}>
-      <label className="block text-sm text-gray-400 mb-1">{label}</label>
+      <label className="block text-sm text-gray-400 mb-1">{t(labelKey)}</label>
       <input
         type={type}
         value={(config[key] as string | number) ?? ""}
@@ -58,31 +60,31 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-white">Settings</h1>
+      <h1 className="text-2xl font-bold text-white">{t("settings.title")}</h1>
 
       {saved && (
         <div className="bg-green-900/50 border border-green-500 text-green-300 px-4 py-2 rounded text-sm">
-          Settings saved successfully
+          {t("settings.saved")}
         </div>
       )}
 
       <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-        <h2 className="text-white font-semibold">Company Profile</h2>
-        {field("Company Name", "name")}
-        {field("Industry", "industry")}
-        {field("Product Type", "product_type")}
-        {field("Website URL", "website_url")}
-        {field("Mission", "mission")}
-        {field("Vision", "vision")}
-        {field("Description", "description")}
-        {field("Target Market", "target_market")}
-        {field("Value Proposition", "value_prop")}
+        <h2 className="text-white font-semibold">{t("settings.company_profile")}</h2>
+        {field("settings.company_name", "name")}
+        {field("settings.industry", "industry")}
+        {field("settings.product_type", "product_type")}
+        {field("settings.website_url", "website_url")}
+        {field("settings.mission", "mission")}
+        {field("settings.vision", "vision")}
+        {field("settings.description", "description")}
+        {field("settings.target_market", "target_market")}
+        {field("settings.value_prop", "value_prop")}
       </div>
 
       <div className="bg-gray-800 rounded-lg p-5 space-y-4">
-        <h2 className="text-white font-semibold">Scheduler</h2>
-        {field("Timezone", "timezone")}
-        {field("Morning Cycle Hour (UTC)", "daily_cycle_hour", "number")}
+        <h2 className="text-white font-semibold">{t("settings.scheduler")}</h2>
+        {field("settings.timezone", "timezone")}
+        {field("settings.morning_cycle", "daily_cycle_hour", "number")}
       </div>
 
       <button
@@ -90,7 +92,7 @@ export default function SettingsPage() {
         disabled={saving}
         className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md text-sm"
       >
-        {saving ? "Saving…" : "Save Settings"}
+        {saving ? t("settings.saving") : t("settings.save")}
       </button>
     </div>
   );

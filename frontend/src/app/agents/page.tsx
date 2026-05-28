@@ -2,21 +2,24 @@
 import { useState } from "react";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
+import { PageTitle } from "@/components/PageTitle";
 
 const AGENT_DESCRIPTIONS: Record<string, string> = {
-  orchestrator: "Generates daily task plans and evening summaries",
-  business_planning: "Analyzes strategy, updates KPIs, identifies opportunities",
-  competitor_research: "Researches competitors and market positioning",
-  social_media: "Drafts and posts tweets, monitors engagement",
-  ads_management: "Manages Google and Meta ad campaigns",
-  email_outreach: "Finds prospects and sends personalized cold emails",
-  code_generation: "Writes code, commits to GitHub, deploys",
-  customer_support: "Reads inbox and drafts customer replies",
-  finance: "Monitors Stripe revenue, expenses, and alerts",
+  orchestrator: "agent.orchestrator",
+  business_planning: "agent.business_planning",
+  competitor_research: "agent.competitor_research",
+  social_media: "agent.social_media",
+  ads_management: "agent.ads_management",
+  email_outreach: "agent.email_outreach",
+  code_generation: "agent.code_generation",
+  customer_support: "agent.customer_support",
+  finance: "agent.finance",
 };
 
 export default function AgentsPage() {
   const { statuses, loading } = useAgentStatus();
+  const { t } = useI18n();
   const [triggering, setTriggering] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -35,7 +38,9 @@ export default function AgentsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">Agents</h1>
+      <div className="flex items-center justify-between">
+        <PageTitle i18nKey="agents.title" />
+      </div>
 
       {message && (
         <div className="bg-indigo-900/50 border border-indigo-500 rounded-lg px-4 py-3 text-indigo-200 text-sm">
@@ -61,11 +66,11 @@ export default function AgentsPage() {
                   {s.agent_type.replace(/_/g, " ")}
                 </h3>
                 <p className="text-gray-400 text-sm">
-                  {AGENT_DESCRIPTIONS[s.agent_type] ?? ""}
+                  {t(AGENT_DESCRIPTIONS[s.agent_type] ?? "")}
                 </p>
                 <p className="text-gray-500 text-xs mt-1">
-                  Last run: {s.last_run_at ? new Date(s.last_run_at).toLocaleString() : "Never"} ·{" "}
-                  {s.tasks_today} tasks today
+                  {t("agents.last_run")}: {s.last_run_at ? new Date(s.last_run_at).toLocaleString() : t("agents.never")} ·{" "}
+                  {s.tasks_today} {t("agents.tasks_today")}
                 </p>
               </div>
               <button
@@ -73,7 +78,7 @@ export default function AgentsPage() {
                 disabled={triggering === s.agent_type}
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm rounded-md transition-colors"
               >
-                {triggering === s.agent_type ? "Triggering…" : "Run Now"}
+                {triggering === s.agent_type ? t("agents.triggering") : t("agents.run_now")}
               </button>
             </div>
           ))}
