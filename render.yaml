@@ -43,13 +43,14 @@ services:
       mountPath: /app/data/chroma
       sizeGB: 1
 
-staticSites:
   # ─── Frontend (Static Site) ────────────────────────────────────────────
-  - name: polsia-frontend
+  - type: web
+    name: polsia-frontend
+    env: static
     repo: https://github.com/guish7423/polsia-fork
     branch: main
-    buildCommand: cd frontend && npm ci && npm run build && npx next export -o out
-    publishPath: frontend/out
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/out
     envVars:
       - key: NEXT_PUBLIC_API_URL
         fromService:
