@@ -1,11 +1,11 @@
-services:
-  # ─── PostgreSQL Database (Render Free) ───────────────────────────────────────
-  - type: postgres
-    name: polsia-db
-    database: polsia
+databases:
+  - name: polsia-db
+    databaseName: polsia
     user: polsia
     plan: free
+    ipAllowList: []
 
+services:
   # ─── Backend API (Docker) ────────────────────────────────────────────────────
   - type: web
     name: polsia-api
