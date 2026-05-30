@@ -1,0 +1,11 @@
+[build]
+  builder = "DOCKERFILE"
+  dockerfile_path = "Dockerfile"
+
+[deploy]
+  healthcheck_path = "/api/v1/health"
+  restart_policy_type = "on_failure"
+  num_replicas = 1
+
+[service]
+  port = 8000
