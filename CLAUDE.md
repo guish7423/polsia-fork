@@ -2,7 +2,7 @@
 
 ## What this project is
 
-Polsia is a self-hosted, autonomous AI platform that runs a company's operations 24/7. Ten specialized agents (Orchestrator, Business Planning, Competitor Research, Social Media, Ads, Email Outreach, Customer Support, Code Generation, Finance, Deployment) run on a Celery + Redis task queue with a FastAPI backend and Next.js dashboard. Agents call the Claude Code CLI as a subprocess — no Anthropic API key is used.
+Polsia is a self-hosted, autonomous AI platform that runs a company's operations 24/7. Ten specialized agents (Orchestrator, Business Planning, Competitor Research, Social Media, Ads, Email Outreach, Customer Support, Code Generation, Finance, Deployment) run on a Celery + Redis task queue with a FastAPI backend and Next.js dashboard. Agents call a configurable LLM API (DeepSeek-compatible, OpenAI-compatible) via httpx — configured by `LLM_API_BASE_URL` env var.
 
 ## Running tests
 
@@ -97,18 +97,18 @@ alembic upgrade head
 
 Always add the new model to `models/__init__.py` before generating the migration.
 
-## What CLAUDE_CLI_MOCK does
+## What `LLM_API_MOCK` does
 
-In `base_agent.py`, if `os.getenv("CLAUDE_CLI_MOCK")` is truthy, `call_claude()` returns the value of `CLAUDE_CLI_MOCK_RESPONSE` (defaults to `{"result": "Mock Claude response for testing"}`) instead of spawning a subprocess. This is set via `autouse` fixture in all tests and via env var in CI.
+In `base_agent.py`, if `os.getenv("LLM_API_MOCK", settings.llm_api_mock)` is truthy, `call_llm()` returns the value of `LLM_MOCK_RESPONSE` (defaults to `{"result": "Mock LLM response"}`) instead of making real HTTP calls. This is set via the `SANDBOX_MODE=true` env var or directly via `LLM_API_MOCK=true`.
 
 ## CI environment
 
 Three GitHub Actions workflows:
-- `ci.yml` — lint + unit tests on every PR (no Docker, `CLAUDE_CLI_MOCK=true`)
+- `ci.yml` — lint + unit tests on every PR (no Docker)
 - `integration.yml` — integration + E2E tests on push to main (testcontainers + full Docker stack)
 - `docker-build.yml` — build all images + health-check smoke test on push to main
 
-No Claude credentials are needed in CI. The `CLAUDE_CLI_MOCK=true` env var is set in `docker-compose.ci.yml` and in the workflow env blocks.
+No LLM API credentials are needed in CI. Mock mode is the default in test configurations.
 
 ## Common pitfalls
 
@@ -116,3 +116,4 @@ No Claude credentials are needed in CI. The `CLAUDE_CLI_MOCK=true` env var is se
 - **Don't import `chromadb` or `asyncpg` at module level** — both are lazy-imported inside functions so unit tests can import models without these packages installed
 - **Don't call `await db.commit()` in API handlers** — `get_db()` auto-commits on successful yield; call `await db.flush()` + `await db.refresh(obj)` if you need the server-generated `updated_at` before returning
 - **Always patch where the name is used, not where it's defined** — e.g. patch `app.services.memory_service.get_collection`, not `app.core.chroma_client.get_collection`
+- **Agent method is `call_llm()` / `call_llm_async()`**, NOT old `call_claude()` — the agents use httpx to call DeepSeek-compatible API endpoints, not a CLI subprocess
