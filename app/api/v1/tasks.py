@@ -1,11 +1,9 @@
 """Task API routes — CRUD for agent tasks."""
-from typing import Optional
 
-from pydantic import BaseModel
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import verify_api_key
 from app.core.database import get_db
 from app.services.task_service import (
     VALID_AGENT_TYPES,
@@ -19,25 +17,11 @@ from app.services.task_service import (
 router = APIRouter(tags=["tasks"])
 
 
-class CreateTaskRequest(BaseModel):
-    title: str
-    agent_type: str
-    description: Optional[str] = None
-    priority: int = 3
-
-
-class UpdateTaskRequest(BaseModel):
-    status: str
-    result_summary: Optional[str] = None
-    error_message: Optional[str] = None
-
-
 @router.get("/tasks")
 async def list_tasks(
     limit: int = Query(default=100, le=500),
     status: Optional[str] = None,
     agent_type: Optional[str] = None,
-    api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     """List tasks with optional filters."""
@@ -64,7 +48,6 @@ async def list_tasks(
 @router.get("/tasks/{task_id}")
 async def get_task_by_id(
     task_id: int,
-    api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db),
 ):
     """Get a single task by ID."""
@@ -88,17 +71,20 @@ async def get_task_by_id(
 
 @router.post("/tasks", status_code=201)
 async def create_new_task(
-    body: CreateTaskRequest,
-    api_key: str = Depends(verify_api_key),
+    title: str,
+    agent_type: str,
+    description: Optional[str] = None,
+    priority: int = 3,
+    source: str = "api",
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new task."""
-    if not validate_agent_type(body.agent_type):
+    if not validate_agent_type(agent_type):
         raise HTTPException(
             status_code=400,
             detail=f"Invalid agent_type. Must be one of: {VALID_AGENT_TYPES}",
         )
-    task = await create_task(db, body.title, body.agent_type, body.description, body.priority, "api")
+    task = await create_task(db, title, agent_type, description, priority, source)
     return {
         "id": task.id,
         "title": task.title,
@@ -110,12 +96,13 @@ async def create_new_task(
 @router.put("/tasks/{task_id}")
 async def update_task(
     task_id: int,
-    body: UpdateTaskRequest,
-    api_key: str = Depends(verify_api_key),
+    status: str,
+    result_summary: Optional[str] = None,
+    error_message: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     """Update task status and result."""
-    task = await update_task_status(db, task_id, body.status, body.result_summary, body.error_message)
+    task = await update_task_status(db, task_id, status, result_summary, error_message)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return {
@@ -124,3 +111,5 @@ async def update_task(
         "status": task.status,
         "result_summary": task.result_summary,
     }
+    """List tasks with optional filters (stub)."""
+    return []

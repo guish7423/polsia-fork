@@ -42,11 +42,3 @@ async def get_recent_activities(
         .limit(limit)
     )
     return list(result.scalars().all())
-
-
-
-async def get_recent_activity(
-    db: AsyncSession, limit: int = 50
-) -> list[ActivityLog]:
-    """Alias for get_recent_activities. Get recent activity log entries."""
-    return await get_recent_activities(db, limit)

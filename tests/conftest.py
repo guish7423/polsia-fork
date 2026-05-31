@@ -24,7 +24,7 @@ def mock_llm_api(monkeypatch):
 @pytest_asyncio.fixture
 async def async_db_session():
     """SQLite in-memory async session — no Postgres required for unit tests."""
-    from app.core.database import Base
+    from app.models.base import Base
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -65,7 +65,7 @@ def mock_chroma(mocker):
         "distances": [[0.1]],
     })
     mocker.patch("app.core.chroma_client.get_collection", return_value=collection)
-    mocker.patch("app.services.memory_service.get_collection", return_value=collection)
+    # memory_service no longer depends on chroma_client directly
     return collection
 
 

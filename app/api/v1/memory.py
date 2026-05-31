@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import verify_api_key
 from app.core.database import get_db
-from app.services.memory_service import list_memories, search_memory, store_memory
+from app.services.memory_service import search_memory, store_memory
 
 router = APIRouter(tags=["memory"])
 
@@ -38,17 +38,13 @@ async def create_memory(
 
 @router.get("/memory")
 async def list_or_search_memory(
-    q: str = Query(default=""),
     category: str | None = Query(default=None),
     limit: int = Query(default=50, le=200),
     api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db),
 ):
-    """Search or list memory entries."""
-    if q:
-        results = await search_memory(db, query_str=q, n_results=limit, category=category)
-        return results
-    entries = await list_memories(db, category=category, limit=limit)
+    """List memory entries, optionally filtered by category."""
+    entries = await search_memory(db, category=category, limit=limit)
     return [
         {
             "id": e.id,

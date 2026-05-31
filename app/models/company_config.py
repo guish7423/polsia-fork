@@ -25,4 +25,3 @@ class CompanyConfig(Base, TimestampMixin):
     industry: Mapped[str | None] = mapped_column(String(100))
     timezone: Mapped[str] = mapped_column(String(50), server_default="UTC")
     daily_cycle_hour: Mapped[int] = mapped_column(Integer, server_default="6")
-    yesterday_summary: Mapped[str | None] = mapped_column(Text)

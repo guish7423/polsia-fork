@@ -12,13 +12,8 @@ async def test_list_tasks_empty(api_client, auth_headers):
 @pytest.mark.asyncio
 async def test_create_task(api_client, auth_headers):
     resp = await api_client.post(
-        "/api/v1/tasks",
+        "/api/v1/tasks?title=Research+competitors&agent_type=competitor_research&priority=2",
         headers=auth_headers,
-        json={
-            "title": "Research competitors",
-            "agent_type": "competitor_research",
-            "priority": 2,
-        },
     )
     assert resp.status_code == 201
     data = resp.json()
@@ -29,9 +24,8 @@ async def test_create_task(api_client, auth_headers):
 @pytest.mark.asyncio
 async def test_get_task_by_id(api_client, auth_headers):
     create = await api_client.post(
-        "/api/v1/tasks",
+        "/api/v1/tasks?title=My+task&agent_type=finance",
         headers=auth_headers,
-        json={"title": "My task", "agent_type": "finance"},
     )
     task_id = create.json()["id"]
 

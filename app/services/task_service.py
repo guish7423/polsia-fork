@@ -103,27 +103,3 @@ async def get_tasks_by_status(db: AsyncSession, status: str) -> int:
     query = select(func.count()).select_from(Task).where(Task.status == status)
     result = await db.execute(query)
     return result.scalar() or 0
-
-
-async def list_tasks(
-    db: AsyncSession,
-    limit: int = 100,
-    status: str | None = None,
-    agent_type: str | None = None,
-) -> list[Task]:
-    """Alias for get_tasks. List tasks with optional filters."""
-    return await get_tasks(db, limit=limit, status=status, agent_type=agent_type)
-
-
-async def get_tasks_today_summary(db: AsyncSession) -> dict:
-    """Get summary counts for today's tasks."""
-    tasks_today = await get_tasks_today(db)
-    pending = await get_tasks_by_status(db, "pending")
-    completed = await get_tasks_by_status(db, "completed")
-    failed = await get_tasks_by_status(db, "failed")
-    return {
-        "total": tasks_today,
-        "pending": pending,
-        "completed": completed,
-        "failed": failed,
-    }

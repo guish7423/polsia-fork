@@ -2,7 +2,6 @@ import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { AgentStatusGrid } from "@/components/dashboard/AgentStatusGrid";
 import { MetricsCard } from "@/components/dashboard/MetricsCard";
 import { api, type DashboardSummary } from "@/lib/api";
-import { PageTitle, SectionTitle } from "@/components/PageTitle";
 
 async function getSummary(): Promise<DashboardSummary | null> {
   try {
@@ -14,30 +13,31 @@ async function getSummary(): Promise<DashboardSummary | null> {
 
 export default async function DashboardPage() {
   const summary = await getSummary();
+
   const kpis = summary?.kpis ?? {};
 
   return (
     <div className="p-6 space-y-6">
-      <PageTitle i18nKey="dash.title" />
+      <h1 className="text-2xl font-bold text-white">Dashboard</h1>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricsCard
-          titleKey="dash.tasks_today"
+          title="Tasks Today"
           value={summary?.tasks_today_total ?? "—"}
-          subtitle={`${summary?.tasks_today_completed ?? 0} ✓ · ${summary?.tasks_today_failed ?? 0} ✗`}
+          subtitle={`${summary?.tasks_today_completed ?? 0} completed · ${summary?.tasks_today_failed ?? 0} failed`}
         />
         <MetricsCard
-          titleKey="dash.mrr"
+          title="MRR"
           value={kpis.mrr_usd != null ? `$${kpis.mrr_usd}` : "—"}
           trend="up"
         />
         <MetricsCard
-          titleKey="dash.active_customers"
+          title="Active Customers"
           value={kpis.active_customers != null ? String(kpis.active_customers) : "—"}
         />
         <MetricsCard
-          titleKey="dash.churn_rate"
+          title="Churn Rate"
           value={kpis.churn_rate != null ? `${kpis.churn_rate}%` : "—"}
           trend={Number(kpis.churn_rate) > 5 ? "down" : "neutral"}
         />
@@ -46,16 +46,18 @@ export default async function DashboardPage() {
       {/* Agent Grid + Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
-          <SectionTitle i18nKey="dash.agent_status" />
+          <h2 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">
+            Agent Status
+          </h2>
           <AgentStatusGrid />
         </div>
         <div className="h-96">
-          <SectionTitle i18nKey="dash.live_activity" />
+          <h2 className="text-sm font-semibold text-gray-400 mb-3 uppercase tracking-wider">
+            Live Activity
+          </h2>
           <ActivityFeed />
         </div>
       </div>
     </div>
   );
 }
-
-

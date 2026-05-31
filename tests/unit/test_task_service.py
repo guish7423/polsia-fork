@@ -4,9 +4,9 @@ import pytest
 from app.services.task_service import (
     create_task,
     get_task,
-    get_tasks_today_summary,
-    list_tasks,
+    get_tasks,
     update_task_status,
+    validate_agent_type,
 )
 
 
@@ -58,15 +58,24 @@ async def test_update_task_status(async_db_session):
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_filter_by_status(async_db_session):
+async def test_get_tasks_filters_by_status(async_db_session):
     await create_task(async_db_session, title="Task A", agent_type="finance")
     t2 = await create_task(async_db_session, title="Task B", agent_type="social_media")
     await async_db_session.commit()
     await update_task_status(async_db_session, t2.id, "completed")
     await async_db_session.commit()
 
-    pending = await list_tasks(async_db_session, status="pending")
-    completed = await list_tasks(async_db_session, status="completed")
+    pending = await get_tasks(async_db_session, status="pending")
+    completed = await get_tasks(async_db_session, status="completed")
 
     assert all(t.status == "pending" for t in pending)
     assert all(t.status == "completed" for t in completed)
+
+
+def test_validate_agent_type_valid():
+    assert validate_agent_type("social_media") is True
+    assert validate_agent_type("finance") is True
+
+
+def test_validate_agent_type_invalid():
+    assert validate_agent_type("nonexistent") is False

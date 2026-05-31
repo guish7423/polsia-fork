@@ -4,7 +4,7 @@ import json
 
 from app.core.redis_client import get_redis
 
-ACTIVITY_CHANNEL = "polsia:activity"
+ACTIVITY_CHANNEL = "activity:events"
 
 
 async def publish_activity(
