@@ -1,13 +1,5 @@
 """FastAPI application factory."""
 
-from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
-
-from app.config import settings
-
 import asyncio
 from contextlib import asynccontextmanager
 
@@ -29,9 +21,11 @@ async def lifespan(app: FastAPI):
     if settings.debug:
         from app.core.database import init_db
         await init_db()
-    # Startup: start Redis pub/sub listener for WebSocket
     from app.api.v1.ws import listen_redis
-    _redis_task = asyncio.create_task(listen_redis())
+    try:
+        _redis_task = asyncio.create_task(listen_redis())
+    except Exception:
+        _redis_task = None
     yield
     # Shutdown: cancel Redis listener
     if _redis_task:
@@ -86,6 +80,7 @@ from app.api.v1.finance import router as finance_router
 from app.api.v1.config import router as config_router
 from app.api.v1.memory import router as memory_router
 from app.api.v1.social import router as social_router
+from app.api.v1.activity import router as activity_router
 from app.api.v1.ws import router as ws_router
 
 app.include_router(dashboard_router, prefix="/api/v1")
@@ -95,4 +90,5 @@ app.include_router(finance_router, prefix="/api/v1")
 app.include_router(config_router, prefix="/api/v1")
 app.include_router(memory_router, prefix="/api/v1")
 app.include_router(social_router, prefix="/api/v1")
+app.include_router(activity_router, prefix="/api/v1")
 app.include_router(ws_router)

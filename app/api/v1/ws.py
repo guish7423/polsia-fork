@@ -35,25 +35,30 @@ async def broadcast_activity(agent_type: str, action: str, summary: str, level: 
 async def listen_redis():
     """Background task: listen to Redis pub/sub and broadcast to WebSockets."""
     from app.core.redis_client import get_redis
-    redis = await get_redis()
-    pubsub = redis.pubsub()
-    await pubsub.subscribe(ACTIVITY_CHANNEL)
     try:
-        async for message in pubsub.listen():
-            if message["type"] == "message":
-                try:
-                    data = json.loads(message["data"])
-                    await broadcast_activity(
-                        data.get("agent_type", ""),
-                        data.get("action", ""),
-                        data.get("summary", ""),
-                        data.get("level", "info"),
-                    )
-                except json.JSONDecodeError:
-                    pass
-    except asyncio.CancelledError:
-        await pubsub.unsubscribe(ACTIVITY_CHANNEL)
-        await pubsub.close()
+        redis = await get_redis()
+        pubsub = redis.pubsub()
+        await pubsub.subscribe(ACTIVITY_CHANNEL)
+        try:
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    try:
+                        data = json.loads(message["data"])
+                        await broadcast_activity(
+                            data.get("agent_type", ""),
+                            data.get("action", ""),
+                            data.get("summary", ""),
+                            data.get("level", "info"),
+                        )
+                    except json.JSONDecodeError:
+                        pass
+        except asyncio.CancelledError:
+            await pubsub.unsubscribe(ACTIVITY_CHANNEL)
+            await pubsub.close()
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 @router.websocket("/ws/activity")
