@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import DEPLOYMENT_SYSTEM_PROMPT
 from app.models.company_config import CompanyConfig
 from app.services.activity_service import log_activity
 from app.services.task_service import get_tasks
@@ -22,7 +23,6 @@ class DeploymentAgent(BasePolsiaAgent):
         result = await db.execute(select(CompanyConfig).limit(1))
         config = result.scalar_one_or_none()
 
-        # Get pending deployment tasks
         pending_tasks = await get_tasks(db, status="pending", agent_type="deployment")
         in_progress_tasks = await get_tasks(db, status="in_progress", agent_type="deployment")
 
@@ -32,15 +32,9 @@ class DeploymentAgent(BasePolsiaAgent):
             "website_url": config.website_url if config else None,
             "pending_deployments": len(pending_tasks),
             "active_deployments": len(in_progress_tasks),
-            "instructions": (
-                "Output JSON with: "
-                '"status" ("healthy"|"deploying"|"issues"), '
-                '"report" (str), '
-                '"next_steps" (list of str)'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=DEPLOYMENT_SYSTEM_PROMPT)
 
         await log_activity(
             db, agent_type="deployment", action="status_check",

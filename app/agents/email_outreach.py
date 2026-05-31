@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import EMAIL_OUTREACH_SYSTEM_PROMPT
 from app.models.email import EmailCampaign, EmailLog, Prospect
 from app.services.activity_service import log_activity
 
@@ -19,16 +20,9 @@ class EmailOutreachAgent(BasePolsiaAgent):
     async def run(self, db: AsyncSession, context: dict | None = None) -> dict:
         prompt = json.dumps({
             "task": "Generate prospect ideas and email outreach content",
-            "instructions": (
-                "Output JSON with: "
-                '"prospects" (list of {email: str, first_name: str, company: str}), '
-                '"campaign_name" (str), '
-                '"email_subject" (str), '
-                '"email_body" (str)'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=EMAIL_OUTREACH_SYSTEM_PROMPT)
 
         # Create prospect records
         prospects_data = llm_result.get("prospects", [])

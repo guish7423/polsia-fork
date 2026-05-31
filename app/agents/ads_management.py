@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import ADS_MANAGEMENT_SYSTEM_PROMPT
 from app.models.ad import AdCampaign, AdMetric
 from app.services.activity_service import log_activity
 
@@ -32,15 +33,9 @@ class AdsManagementAgent(BasePolsiaAgent):
                 {"name": c.name, "status": c.status, "daily_budget": c.daily_budget_usd}
                 for c in campaigns
             ],
-            "instructions": (
-                "Output JSON with: "
-                '"campaign_name" (str), '
-                '"budget_allocation_usd" (int), '
-                '"optimization_tips" (list of str)'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=ADS_MANAGEMENT_SYSTEM_PROMPT)
 
         # Create or update campaigns from LLM output
         if not campaigns:

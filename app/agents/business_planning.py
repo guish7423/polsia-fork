@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import BUSINESS_PLANNING_SYSTEM_PROMPT
 from app.models.company_config import CompanyConfig
 from app.services.activity_service import log_activity
 
@@ -31,15 +32,9 @@ class BusinessPlanningAgent(BasePolsiaAgent):
             "current_goals": config.goals,
             "current_kpis": config.kpis,
             "industry": config.industry,
-            "instructions": (
-                "Output JSON with: "
-                '"suggested_goals" (dict), '
-                '"suggested_kpis" (dict), '
-                '"recommendations" (list of str)'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=BUSINESS_PLANNING_SYSTEM_PROMPT)
 
         # Update company config with refined KPIs
         if llm_result.get("suggested_kpis"):

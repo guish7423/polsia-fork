@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import ORCHESTRATOR_SYSTEM_PROMPT
 from app.models.company_config import CompanyConfig
 from app.models.report import DailyReport
 from app.services.activity_service import log_activity
@@ -20,25 +21,19 @@ class OrchestratorAgent(BasePolsiaAgent):
     agent_type = "orchestrator"
 
     async def run(self, db: AsyncSession, context: dict | None = None) -> dict:
-        # Read company config for context
         result = await db.execute(select(CompanyConfig).limit(1))
         config = result.scalar_one_or_none()
         company_name = config.name if config else "Unnamed Company"
         goals = config.goals if config and config.goals else {}
 
-        # Build prompt for LLM
         prompt = json.dumps({
             "task": "Create a daily plan and prioritized task list",
             "company": company_name,
             "goals": goals,
             "date": date.today().isoformat(),
-            "instructions": (
-                "Output a JSON object with: "
-                '"morning_plan" (str), "tasks" (list of {title, description, agent_type, priority})'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=ORCHESTRATOR_SYSTEM_PROMPT)
 
         # Create tasks from LLM output
         tasks_planned = 0

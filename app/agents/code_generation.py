@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import CODE_GENERATION_SYSTEM_PROMPT
 from app.models.company_config import CompanyConfig
 from app.services.activity_service import log_activity
 from app.services.task_service import create_task as create_task_record
@@ -25,14 +26,9 @@ class CodeGenerationAgent(BasePolsiaAgent):
             "task": "Plan code generation for company product",
             "company": config.name if config else "Unnamed Company",
             "product_type": config.product_type if config else "web_app",
-            "instructions": (
-                "Output JSON with: "
-                '"generated_files" (list of {path: str, description: str}), '
-                '"deployment_tasks" (list of {title: str, description: str})'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=CODE_GENERATION_SYSTEM_PROMPT)
 
         # Create deployment tasks from generated code output
         deployment_tasks = llm_result.get("deployment_tasks", [])

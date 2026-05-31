@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import FINANCE_SYSTEM_PROMPT
 from app.models.finance import ExpenseRecord, RevenueSnapshot
 from app.services.activity_service import log_activity
 

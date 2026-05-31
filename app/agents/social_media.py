@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import SOCIAL_MEDIA_SYSTEM_PROMPT
 from app.models.social import SocialEngagement, SocialPost
 from app.services.activity_service import log_activity
 
@@ -20,14 +21,9 @@ class SocialMediaAgent(BasePolsiaAgent):
     async def run(self, db: AsyncSession, context: dict | None = None) -> dict:
         prompt = json.dumps({
             "task": "Create social media content and analyze engagement",
-            "instructions": (
-                "Output JSON with: "
-                '"posts" (list of {platform: "twitter"|"linkedin", content: str}), '
-                '"engagement_insights" (str)'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=SOCIAL_MEDIA_SYSTEM_PROMPT)
 
         posts_created = 0
         for post_data in llm_result.get("posts", []):

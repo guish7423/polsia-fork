@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import COMPETITOR_RESEARCH_SYSTEM_PROMPT
 from app.models.competitor import Competitor
 from app.models.company_config import CompanyConfig
 from app.services.activity_service import log_activity
@@ -22,7 +23,6 @@ class CompetitorResearchAgent(BasePolsiaAgent):
         result = await db.execute(select(CompanyConfig).limit(1))
         config = result.scalar_one_or_none()
 
-        # Get existing competitors
         comp_result = await db.execute(select(Competitor))
         existing = list(comp_result.scalars().all())
         existing_names = [c.name for c in existing]
@@ -32,15 +32,9 @@ class CompetitorResearchAgent(BasePolsiaAgent):
             "industry": config.industry if config else "technology",
             "company": config.name if config else "Unknown",
             "existing_competitors": existing_names,
-            "instructions": (
-                "Output JSON with: "
-                '"competitors" (list of {name, website, pricing_summary, '
-                "strengths (list), weaknesses (list), positioning}), "
-                '"market_insights" (str)'
-            ),
         })
 
-        llm_result = await self.call_llm(prompt)
+        llm_result = await self.call_llm(prompt, system_prompt=COMPETITOR_RESEARCH_SYSTEM_PROMPT)
 
         # Update or create competitor records
         competitors_data = llm_result.get("competitors", [])

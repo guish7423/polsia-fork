@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agents.base import BasePolsiaAgent, register_agent
+from app.agents.prompts import CUSTOMER_SUPPORT_SYSTEM_PROMPT
 from app.models.social import SocialEngagement
 from app.services.activity_service import log_activity
 
@@ -17,7 +18,6 @@ class CustomerSupportAgent(BasePolsiaAgent):
     agent_type = "customer_support"
 
     async def run(self, db: AsyncSession, context: dict | None = None) -> dict:
-        # Find unhandled mentions
         result = await db.execute(
             select(SocialEngagement).where(SocialEngagement.our_reply.is_(None)).limit(10)
         )
@@ -29,14 +29,9 @@ class CustomerSupportAgent(BasePolsiaAgent):
                 "task": "Generate a customer support reply",
                 "author": mention.author_handle,
                 "original_message": mention.content,
-                "tone": "helpful and professional",
-                "instructions": (
-                    "Output JSON with: "
-                    '"reply" (str)'
-                ),
             })
 
-            llm_result = await self.call_llm(prompt)
+            llm_result = await self.call_llm(prompt, system_prompt=CUSTOMER_SUPPORT_SYSTEM_PROMPT)
             if "reply" in llm_result:
                 mention.our_reply = llm_result["reply"]
                 replies_generated += 1
