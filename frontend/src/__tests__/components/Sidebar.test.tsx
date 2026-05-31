@@ -1,3 +1,4 @@
+import "@testing-library/jest-dom";
 import { render, screen } from "@testing-library/react";
 import { Sidebar } from "@/components/layout/Sidebar";
 
@@ -12,6 +13,30 @@ jest.mock("next/link", () => {
     return <a href={href} className={className}>{children}</a>;
   };
 });
+
+// Mock i18n — return plain English for nav keys
+jest.mock("@/lib/i18n", () => ({
+  useI18n: () => ({
+    locale: "en",
+    setLocale: jest.fn(),
+    t: (key: string) => {
+      const map: Record<string, string> = {
+        "nav.dashboard": "Dashboard",
+        "nav.agents": "Agents",
+        "nav.tasks": "Tasks",
+        "nav.social": "Social",
+        "nav.outreach": "Outreach",
+        "nav.ads": "Ads",
+        "nav.finance": "Finance",
+        "nav.memory": "Memory",
+        "nav.settings": "Settings",
+        "brand.subtitle": "AI Agent Platform",
+        "nav.lang": "中文",
+      };
+      return map[key] ?? key;
+    },
+  }),
+}));
 
 describe("Sidebar", () => {
   it("renders all nav items", () => {
