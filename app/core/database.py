@@ -1,5 +1,6 @@
 """Async database engine and session management."""
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -31,3 +32,14 @@ async def init_db():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Lightweight migrations for column additions
+    async with engine.begin() as conn:
+        for col_sql in [
+            "ALTER TABLE external_orders ADD COLUMN deliverables JSON",
+            "ALTER TABLE external_orders ADD COLUMN delivery_notes TEXT",
+        ]:
+            try:
+                await conn.execute(text(col_sql))
+            except Exception:
+                pass  # Column already exists
