@@ -34,7 +34,7 @@ TREND_QUERIES = [
 
 BRIEFINGS_FILE = os.environ.get(
     "BRIEFINGS_FILE",
-    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "briefings.json"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "briefings.json"),
 )
 
 

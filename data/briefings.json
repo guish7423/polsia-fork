@@ -1,0 +1,23 @@
+[
+  {
+    "type": "market_intel_briefing",
+    "timestamp": "2026-06-01T07:00:00+00:00",
+    "total_results": 15,
+    "total_sources": 10,
+    "summary": "## Key Trends\n- AI SaaS market continues rapid growth in SEA, projected 5B by 2027\n- Chinese entrepreneurs increasingly seeking AI-powered globalization tools\n- Autonomous AI agents becoming mainstream for business operations\n\n## Competitor Intelligence\n- Jasper AI launched new enterprise workflow automation features\n- Copy.ai expanding into Chinese market with localization tools\n- No major moves from direct competitors in AI deployment space\n\n## Opportunities\n- CrossDeploy positioning as \"China-to-Global\" specialist is timely\n- CrossBlog content on AI SaaS going global has high SEO potential\n- Growing demand for AI agent operation services in SMB segment\n\n## Action Items\n1. Prioritize CrossDeploy case studies showcasing China\u2192Global deployments\n2. Expand CrossBlog content targeting \"Chinese AI SaaS going global\" keywords\n3. Monitor Jasper/Copy.ai for partnership or competitive response",
+    "top_results": [
+      {
+        "title": "AI SaaS Market Report 2026: Global Expansion Trends",
+        "snippet": "The AI SaaS market is experiencing unprecedented growth..."
+      },
+      {
+        "title": "How Chinese Startups Are Using AI to Go Global",
+        "snippet": "A growing number of Chinese entrepreneurs are leveraging AI tools..."
+      },
+      {
+        "title": "Autonomous AI Agents: The Next Frontier in Business Operations",
+        "snippet": "Industry analysts predict autonomous AI agents will transform..."
+      }
+    ]
+  }
+]
