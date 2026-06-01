@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, Integer, String, Text, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -26,6 +26,8 @@ class ExternalOrder(Base):
     score_reason: Mapped[str | None] = mapped_column(Text)
     assigned_agent: Mapped[str | None] = mapped_column(String(100))
     source_url: Mapped[str | None] = mapped_column(String(1000))
+    deliverables: Mapped[list | None] = mapped_column(JSON)
+    delivery_notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

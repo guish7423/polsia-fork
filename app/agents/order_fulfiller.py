@@ -10,6 +10,10 @@ from app.agents.base import BasePolsiaAgent, register_agent
 from app.agents.prompts import ORDER_FULFILLER_SYSTEM_PROMPT
 from app.models.external_order import ExternalOrder
 from app.services.activity_service import log_activity
+from app.services.order_deliverable_service import (
+    generate_standard_deliverables,
+    save_deliverables,
+)
 from app.services.order_scanner_service import update_order_status
 from app.services.task_service import create_task
 
@@ -26,7 +30,7 @@ class OrderFulfillerAgent(BasePolsiaAgent):
             select(ExternalOrder)
             .where(ExternalOrder.status == "accepted")
             .order_by(ExternalOrder.created_at.asc())
-            .limit(5)
+            .limit(20)
         )
         orders = list(result.scalars().all())
         results = []
@@ -69,6 +73,19 @@ class OrderFulfillerAgent(BasePolsiaAgent):
                 source="order_fulfiller",
             )
             tasks_created += 1
+
+        # Generate actual deliverable artifacts for this order
+        deliverables = generate_standard_deliverables(
+            order_title=order.title,
+            description=order.description or "",
+            requirements=order.requirements or "",
+            tier="standard",
+            order_id=order.id,
+        )
+        await save_deliverables(
+            db, order.id, deliverables,
+            delivery_note,
+        )
 
         await update_order_status(
             db, order.id, "completed",

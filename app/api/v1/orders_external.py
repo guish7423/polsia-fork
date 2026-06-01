@@ -4,6 +4,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.auth import verify_api_key
 from app.core.database import async_session
+from app.services.order_deliverable_service import (
+    generate_standard_deliverables,
+    get_deliverables,
+    save_deliverables,
+)
 from app.services.order_scanner_service import (
     create_order,
     get_orders,
@@ -138,6 +143,42 @@ async def fulfill_order_endpoint(order_id: int):
         return result
 
 
+@router.get("/orders/external/{order_id}/deliverables")
+async def get_order_deliverables(order_id: int):
+    """Get deliverables for an order."""
+    async with async_session() as db:
+        order = await get_order(db, order_id)
+        if not order:
+            raise HTTPException(404, "Order not found")
+        items = order.deliverables or []
+        return {"order_id": order_id, "deliverables": items, "delivery_notes": order.delivery_notes}
+
+
+@router.post("/orders/external/{order_id}/deliverables")
+async def generate_order_deliverables(order_id: int):
+    """Generate standard deliverables for an order (both accepted and completed)."""
+    async with async_session() as db:
+        order = await get_order(db, order_id)
+        if not order:
+            raise HTTPException(404, "Order not found")
+        tier = "basic"
+        combined = f"{order.description or ''} {order.requirements or ''}".lower()
+        if "k8s" in combined or "kubernetes" in combined:
+            tier = "enterprise"
+        elif "postgres" in combined or "redis" in combined or "multi" in combined:
+            tier = "standard"
+        deliverables = generate_standard_deliverables(
+            order_title=order.title,
+            description=order.description or "",
+            requirements=order.requirements or "",
+            tier=tier,
+            order_id=order.id,
+        )
+        result = await save_deliverables(db, order.id, deliverables, "Deliverables generated on-demand")
+        await db.commit()
+        return {"order_id": order_id, "deliverables": deliverables, **result}
+
+
 @router.post("/orders/external/scan/{platform}")
 async def scan_external_platform(platform: str):
     """Scan a platform for new orders."""
@@ -169,4 +210,6 @@ def format_order(o) -> dict:
         "created_at": o.created_at.isoformat() if o.created_at else None,
         "updated_at": o.updated_at.isoformat() if o.updated_at else None,
         "completed_at": o.completed_at.isoformat() if o.completed_at else None,
+        "deliverables": o.deliverables,
+        "delivery_notes": o.delivery_notes,
     }

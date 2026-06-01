@@ -44,7 +44,9 @@ def run_agent(self, agent_type: str, context: dict | None = None) -> dict:
     async def _run():
         async with async_session() as db:
             agent = agent_class()
-            return await agent.run(db, context)
+            result = await agent.run(db, context)
+            await db.commit()
+            return result
 
     try:
         result = asyncio.run(_run())
