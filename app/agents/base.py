@@ -29,17 +29,8 @@ agent_map: dict[str, type["BasePolsiaAgent"]] = {}
 # Two levels: "approval" (queue for HQ review) and "block" (reject outright).
 
 _AGENT_SANDBOX_RULES: dict[str, str] = {
-    # agent_type → rule_id
+    # agent_type → rule_id (only high-risk agents in production)
     "finance": "finance_change",
-    "deployment": "finance_change",
-    "deploy_agent": "finance_change",
-    "email_outreach": "external_comms",
-    "social_media": "external_comms",
-    "ads_management": "external_comms",
-    "order_scanner": "warn_trigger",
-    "customer_support": "external_comms",
-    "lead_nurturing": "external_comms",
-    "order_fulfiller": "order_fulfill",
 }
 
 

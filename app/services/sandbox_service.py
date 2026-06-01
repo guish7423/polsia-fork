@@ -32,30 +32,16 @@ SAFETY_RULES: list[dict[str, Any]] = [
     {
         "id": "finance_change",
         "level": "approval",
-        "scope": "agent:finance,agent:deployment",
-        "description": "Finance/deployment agent actions need human approval",
-        "match": {"agent_type": ["finance", "deployment", "deploy_agent"]},
-    },
-    {
-        "id": "external_comms",
-        "level": "approval",
-        "scope": "agent:email_outreach,agent:social_media",
-        "description": "External communications need human approval before sending",
-        "match": {"agent_type": ["email_outreach", "social_media", "ads_management"]},
+        "scope": "agent:finance",
+        "description": "Finance agent actions need human approval (budget moves)",
+        "match": {"agent_type": ["finance"]},
     },
     {
         "id": "order_high_value",
         "level": "approval",
         "scope": "action:accept_order",
-        "description": "Orders ≥ ¥5,000 need human approval",
-        "match": {"action_type": "accept_order", "min_budget": 500000},  # cents
-    },
-    {
-        "id": "agent_trigger",
-        "level": "warn",
-        "scope": "all",
-        "description": "All agent triggers are logged for audit",
-        "match": {"action_type": "trigger_agent"},
+        "description": "Orders ≥ ¥10,000 need human approval",
+        "match": {"action_type": "accept_order", "min_budget": 1000000},  # cents = ¥10K
     },
 ]
 
