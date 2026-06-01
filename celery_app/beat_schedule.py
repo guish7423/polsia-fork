@@ -27,6 +27,12 @@ beat_schedule = {
         "schedule": crontab(minute=30, hour="*/3"),
         "options": {"queue": "agents"},
     },
+    # Every 4h: scan external platforms for new orders
+    "order-scan-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_order_scan",
+        "schedule": crontab(minute=0, hour="*/4"),
+        "options": {"queue": "agents"},
+    },
     # Every 6h: sync ad metrics + Stripe failed payments
     "ads-stripe-sync": {
         "task": "celery_app.tasks.agent_tasks.run_ads_stripe_sync",

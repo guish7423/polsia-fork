@@ -13,5 +13,6 @@ from app.agents import (  # noqa: F401
     email_outreach,
     finance,
     orchestrator,
+    order_scanner,
     social_media,
 )

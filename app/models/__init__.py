@@ -13,6 +13,7 @@ from app.models.competitor import Competitor
 from app.models.stripe import StripeEvent
 from app.models.finance import RevenueSnapshot, ExpenseRecord
 from app.models.report import DailyReport
+from app.models.external_order import ExternalOrder
 from app.models.lead import Lead
 
 __all__ = [
@@ -36,4 +37,5 @@ __all__ = [
     "ExpenseRecord",
     "DailyReport",
     "Lead",
+    "ExternalOrder",
 ]

@@ -40,6 +40,12 @@ def run_email_sweep(self):
 
 
 @shared_task(bind=True)
+def run_order_scan(self):
+    """Scan: check external platforms for new orders."""
+    return run_agent("order_scanner")
+
+
+@shared_task(bind=True)
 def run_ads_stripe_sync(self):
     """Sync: collect ad metrics and run ads management."""
     return run_agent("ads_management")
