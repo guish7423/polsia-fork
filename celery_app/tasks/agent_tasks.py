@@ -46,6 +46,18 @@ def run_order_scan(self):
 
 
 @shared_task(bind=True)
+def run_order_fulfill(self):
+    """Fulfill: process accepted orders."""
+    return run_agent("order_fulfiller")
+
+
+@shared_task(bind=True)
+def run_lead_nurture(self):
+    """Nurture: follow up with new leads."""
+    return run_agent("lead_nurturing")
+
+
+@shared_task(bind=True)
 def run_ads_stripe_sync(self):
     """Sync: collect ad metrics and run ads management."""
     return run_agent("ads_management")

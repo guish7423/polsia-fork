@@ -33,6 +33,18 @@ beat_schedule = {
         "schedule": crontab(minute=0, hour="*/4"),
         "options": {"queue": "agents"},
     },
+    # Every 2h: fulfill accepted orders
+    "order-fulfill-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_order_fulfill",
+        "schedule": crontab(minute=30, hour="*/2"),
+        "options": {"queue": "agents"},
+    },
+    # Every 1h: nurture new leads
+    "lead-nurture-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_lead_nurture",
+        "schedule": crontab(minute=15, hour="*"),
+        "options": {"queue": "agents"},
+    },
     # Every 6h: sync ad metrics + Stripe failed payments
     "ads-stripe-sync": {
         "task": "celery_app.tasks.agent_tasks.run_ads_stripe_sync",

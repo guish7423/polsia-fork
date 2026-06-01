@@ -89,6 +89,20 @@ async def accept_order(order_id: int, assigned_agent: str = ""):
         return format_order(order)
 
 
+@router.post("/orders/external/{order_id}/fulfill")
+async def fulfill_order_endpoint(order_id: int):
+    """Run AI fulfillment on an accepted order."""
+    from app.agents.order_fulfiller import OrderFulfillerAgent
+
+    async with async_session() as db:
+        order = await get_order(db, order_id)
+        if not order:
+            raise HTTPException(404, "Order not found")
+        agent = OrderFulfillerAgent()
+        result = await agent._fulfill(db, order)
+        return result
+
+
 @router.post("/orders/external/scan/{platform}")
 async def scan_external_platform(platform: str):
     """Scan a platform for new orders."""
