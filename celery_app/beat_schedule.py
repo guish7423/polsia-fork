@@ -75,4 +75,10 @@ beat_schedule = {
         "schedule": crontab(hour=7, minute=0),
         "options": {"queue": "agents"},
     },
+    # Daily at 3:00: sandbox cleanup — expire pending actions older than 72h
+    "sandbox-cleanup": {
+        "task": "celery_app.tasks.agent_tasks.run_sandbox_cleanup",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "maintenance"},
+    },
 }

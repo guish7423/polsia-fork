@@ -85,3 +85,11 @@ def run_evolution_sweep(self):
 def run_briefing_sweep(self):
     """Intel: collect market intelligence daily briefing."""
     return run_agent("market_intel")
+
+
+@shared_task(bind=True)
+def run_sandbox_cleanup(self):
+    """Sandbox: cleanup expired pending actions."""
+    from app.services.sandbox_service import cleanup_expired
+    count = cleanup_expired(hours=72)
+    return {"cleaned": count, "task": "sandbox_cleanup"}
