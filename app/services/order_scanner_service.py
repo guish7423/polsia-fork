@@ -194,7 +194,7 @@ async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
             if resp.status_code == 200:
                 data = resp.json()
                 raw = data[1:] if isinstance(data, list) and len(data) > 1 else []
-                for item in raw[:15]:
+                for item in raw[:40]:
                     title = item.get("position", "").strip()
                     tags = item.get("tags", [])
                     desc = item.get("description", "")[:800]
@@ -210,6 +210,8 @@ async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
                             "salary_max": float(salary_max) if salary_max else None,
                             "source_url": item.get("url", ""),
                         })
+                        if len(jobs) >= 10:  # cap at 10 relevant per source
+                            break
             else:
                 print(f"[scanner] RemoteOK returned {resp.status_code}")
     except Exception as e:
@@ -218,15 +220,14 @@ async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
 
 
 async def fetch_careernest_api() -> list[dict]:
-    """Fetch devops/cloud contract jobs from Career Nest (free, no auth, 30 req/min).
-    1.5M+ jobs, updated every 6h."""
+    """Fetch devops/cloud jobs from Career Nest (free, no auth, 30 req/min).
+    1.5M+ jobs, updated every 6h. Contract type often empty — query broad categories."""
     jobs = []
     try:
         import httpx
-        # DevOps & Cloud + contract/freelance type
         urls = [
-            "https://careernest.cloud/api/feed?category=devops-cloud&type=contract&limit=20",
-            "https://careernest.cloud/api/feed?category=software-development&type=contract&limit=20",
+            "https://careernest.cloud/api/feed?category=devops-cloud&limit=30",
+            "https://careernest.cloud/api/feed?category=software-development&limit=30",
         ]
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             for url in urls:
@@ -236,18 +237,27 @@ async def fetch_careernest_api() -> list[dict]:
                 )
                 if resp.status_code != 200:
                     continue
-                data = resp.json()
-                items = data if isinstance(data, list) else data.get("jobs", data.get("data", []))
-                for item in items[:10]:
+                cn_data = resp.json()
+                if isinstance(cn_data, dict):
+                    items = cn_data.get("jobs") or cn_data.get("data") or []
+                elif isinstance(cn_data, list):
+                    items = cn_data
+                else:
+                    items = []
+                for item in items[:20]:
                     title = (item.get("title") or item.get("position") or item.get("job_title", "")).strip()
+                    if not title:
+                        continue
                     desc = (item.get("description") or item.get("summary", ""))[:800]
                     tags = item.get("tags") or item.get("skills", [])
-                    if _is_relevant(title, tags if isinstance(tags, list) else [], desc):
+                    tags_list = tags if isinstance(tags, list) else []
+                    # Less strict — accept if title mentions any keyword
+                    if _is_relevant(title, tags_list, desc) or any(k in title.lower() for k in ["engineer", "developer", "architect"]):
                         jobs.append({
                             "title": title,
                             "description": desc,
                             "platform": "careernest",
-                            "tags": tags[:5] if isinstance(tags, list) else [],
+                            "tags": tags_list[:5],
                             "salary_min": None,
                             "salary_max": None,
                             "source_url": item.get("job_url") or item.get("url", ""),
@@ -274,9 +284,17 @@ async def fetch_remotejobs_api() -> list[dict]:
                 )
                 if resp.status_code != 200:
                     continue
-                data = resp.json()
-                items = data if isinstance(data, list) else data.get("jobs", data.get("results", []))
-                for item in items[:10]:
+                resp_data = resp.json()
+                raw_items: list = []
+                if isinstance(resp_data, dict):
+                    for key in ("data", "jobs", "results"):
+                        v = resp_data.get(key)
+                        if isinstance(v, list):
+                            raw_items = v
+                            break
+                elif isinstance(resp_data, list):
+                    raw_items = resp_data
+                for item in raw_items[:15]:
                     title = item.get("title", "").strip()
                     if not title:
                         continue
