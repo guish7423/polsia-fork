@@ -63,4 +63,10 @@ beat_schedule = {
         "schedule": crontab(minute=0, hour="*/6"),
         "options": {"queue": "agents"},
     },
+    # Daily at 23:00: evolution analysis — review agent performance
+    "evolution-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_evolution_sweep",
+        "schedule": crontab(hour=23, minute=0),
+        "options": {"queue": "agents"},
+    },
 }

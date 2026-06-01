@@ -73,3 +73,9 @@ def run_monitor_sweep(self):
 def run_ads_stripe_sync(self):
     """Sync: collect ad metrics and run ads management."""
     return run_agent("ads_management")
+
+
+@shared_task(bind=True)
+def run_evolution_sweep(self):
+    """Evolution: analyze agent performance and drive improvements."""
+    return run_agent("evolution")
