@@ -67,8 +67,37 @@ def run_email_sweep(self):
 
 @shared_task(bind=True)
 def run_order_scan(self):
-    """Scan: check external platforms for new orders."""
-    return run_agent("order_scanner")
+    """Scan: check external platforms for new orders, then evaluate."""
+    from app.services.order_scanner_service import scan_platform
+    from app.core.database import async_session
+    from app.agents import agent_map
+    from app.agents.order_scanner import OrderScannerAgent
+
+    async def _full_pipeline():
+        # 1. Scan all platforms for new orders
+        platforms = ["upwork", "fiverr", "zhubajie"]
+        total = 0
+        for platform in platforms:
+            async with async_session() as db:
+                try:
+                    orders = await scan_platform(db, platform)
+                    await db.commit()
+                    total += len(orders)
+                except Exception as e:
+                    print(f"[scan] {platform} error: {e}")
+        # 2. Evaluate all scanned orders
+        agent = OrderScannerAgent()
+        async with async_session() as db:
+            result = await agent.run(db)
+            await db.commit()
+            return {"scanned": total, "evaluation": result}
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_full_pipeline())
+    finally:
+        loop.close()
 
 
 @shared_task(bind=True)

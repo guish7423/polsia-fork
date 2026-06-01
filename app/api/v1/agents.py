@@ -76,4 +76,8 @@ async def trigger_agent(
         summary=f"{agent_type} agent triggered manually",
     )
 
+    # Dispatch Celery task for actual execution
+    from celery_app.tasks.agent_tasks import run_agent as celery_run_agent
+    celery_run_agent.delay(agent_type)
+
     return {"message": f"{agent_type} agent triggered", "verdict": "allow"}

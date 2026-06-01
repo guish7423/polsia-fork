@@ -51,6 +51,7 @@ async def create_external_order(
             budget_min, budget_max, currency,
             description, requirements, source_url,
         )
+        await db.commit()
         return format_order(order)
 
 
@@ -133,6 +134,7 @@ async def fulfill_order_endpoint(order_id: int):
             raise HTTPException(404, "Order not found")
         agent = OrderFulfillerAgent()
         result = await agent._fulfill(db, order)
+        await db.commit()
         return result
 
 
@@ -144,6 +146,7 @@ async def scan_external_platform(platform: str):
         raise HTTPException(400, f"Invalid platform. Choose: {', '.join(valid)}")
     async with async_session() as db:
         orders = await scan_platform(db, platform)
+        await db.commit()
         return {"platform": platform, "new_orders": len(orders), "data": [format_order(o) for o in orders]}
 
 
