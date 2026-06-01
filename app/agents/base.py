@@ -7,6 +7,13 @@ import os
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.services.model_router import (
+    TaskCategory,
+    agent_category,
+    build_request_kwargs,
+    fallback_chain,
+    select_model,
+)
 
 # Global agent registry
 agent_map: dict[str, type["BasePolsiaAgent"]] = {}
@@ -69,6 +76,9 @@ class BasePolsiaAgent:
     """
 
     agent_type: str = "base"
+    task_category: TaskCategory | None = None
+    """Explicit task category for model routing.  ``None`` → inferred from
+    :attr:`agent_type` via ``AGENT_CATEGORY`` mapping."""
 
     async def call_llm(
         self,
@@ -76,12 +86,16 @@ class BasePolsiaAgent:
         system_prompt: str | None = None,
         json_mode: bool = True,
         max_retries: int = 2,
+        task_category: TaskCategory | None = None,
     ) -> dict:
-        """Call LLM API or return mock response.
+        """Call the best available LLM for this agent's task category.
 
         When ``LLM_API_MOCK=true``, returns a per-agent mock JSON response.
-        Otherwise calls the configured LLM API (DeepSeek-compatible) with
-        exponential backoff retry and graceful fallback.
+
+        When a real API call is needed the :mod:`model_router` selects the
+        optimal model profile for *task_category* (or the agent's default
+        category when omitted).  If the primary profile fails the method
+        falls through the remainder of the fallback chain automatically.
         """
         if os.environ.get("LLM_API_MOCK", str(settings.llm_api_mock)).lower() in (
             "true",
@@ -92,45 +106,47 @@ class BasePolsiaAgent:
 
         import httpx
 
-        last_error = None
-        for attempt in range(max_retries + 1):
-            try:
-                headers = {
-                    "Authorization": f"Bearer {settings.llm_api_key}",
-                    "Content-Type": "application/json",
-                }
-                body = {
-                    "model": settings.llm_model,
-                    "messages": [],
-                    "temperature": 0.7,
-                }
-                if json_mode:
-                    body["response_format"] = {"type": "json_object"}
-                if system_prompt:
-                    body["messages"].append({"role": "system", "content": system_prompt})
-                body["messages"].append({"role": "user", "content": prompt})
+        category = task_category or self.task_category or agent_category(self.agent_type)
+        chain = fallback_chain(category)
 
-                async with httpx.AsyncClient() as client:
-                    resp = await client.post(
-                        f"{settings.llm_api_base_url}/chat/completions",
-                        headers=headers,
-                        json=body,
-                        timeout=120,
+        if not chain:
+            return {"result": "fallback", "error": "No LLM profiles available", "_fallback": True}
+
+        # Try each profile in priority order
+        for profile in chain:
+            last_error = None
+            for attempt in range(max_retries + 1):
+                try:
+                    kwargs = build_request_kwargs(profile, system_prompt, json_mode)
+                    kwargs["json"]["messages"].append(
+                        {"role": "user", "content": prompt}
                     )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    content = data["choices"][0]["message"]["content"]
-                    try:
-                        return json.loads(content)
-                    except json.JSONDecodeError:
-                        return {"result": content, "_parse_warning": "LLM returned non-JSON"}
-            except (httpx.HTTPError, httpx.TimeoutException, KeyError) as exc:
-                last_error = exc
-                if attempt < max_retries:
-                    await asyncio.sleep(2 ** attempt)
-                continue
 
-        return {"result": "fallback", "error": str(last_error), "_fallback": True}
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.post(**kwargs)  # type: ignore[arg-type]
+                        resp.raise_for_status()
+                        data = resp.json()
+                        content = data["choices"][0]["message"]["content"]
+                        try:
+                            return json.loads(content)
+                        except json.JSONDecodeError:
+                            return {
+                                "result": content,
+                                "_parse_warning": "LLM returned non-JSON",
+                                "_model": profile.name,
+                            }
+                except (httpx.HTTPError, httpx.TimeoutException, KeyError) as exc:
+                    last_error = exc
+                    if attempt < max_retries:
+                        await asyncio.sleep(2 ** attempt)
+                    continue
+
+        # All profiles exhausted
+        return {
+            "result": "fallback",
+            "error": "All models failed",
+            "_fallback": True,
+        }
 
     async def run(self, db: AsyncSession, context: dict | None = None) -> dict:
         """Execute the agent's primary logic.
