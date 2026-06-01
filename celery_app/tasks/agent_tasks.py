@@ -7,13 +7,39 @@ from celery import shared_task
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def run_agent(self, agent_type: str, context: dict | None = None) -> dict:
-    """Run any registered agent by type. Generic dispatcher for Celery Beat."""
-    from app.core.database import async_session
+    """Run any registered agent by type.
+
+    Checks sandbox rules before executing.  If the sandbox blocks or queues
+    the agent for approval the task returns immediately without running.
+    """
     from app.agents import agent_map
+    from app.agents.base import sandbox_verdict, submit_sandbox_action
 
     agent_class = agent_map.get(agent_type)
     if not agent_class:
         raise ValueError(f"Unknown agent type: {agent_type}")
+
+    # ── Sandbox gate ──────────────────────────────────────────────────────
+    verdict = sandbox_verdict(agent_type)
+    if verdict["verdict"] == "block":
+        return {
+            "result": "sandbox_blocked",
+            "agent_type": agent_type,
+            "rule_id": verdict.get("rule_id"),
+            "message": verdict.get("message", "Blocked by sandbox"),
+        }
+    if verdict["verdict"] == "pending":
+        record = submit_sandbox_action(agent_type)
+        return {
+            "result": "sandbox_pending",
+            "agent_type": agent_type,
+            "pending_id": record.get("id"),
+            "rule_id": verdict.get("rule_id"),
+            "message": verdict.get("message", "Queued for human approval"),
+        }
+
+    # ── Execute ───────────────────────────────────────────────────────────
+    from app.core.database import async_session
 
     async def _run():
         async with async_session() as db:

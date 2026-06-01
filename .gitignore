@@ -33,3 +33,4 @@ data/chroma/
 # Celery beat
 celerybeat-schedule
 *.db
+.sandbox/

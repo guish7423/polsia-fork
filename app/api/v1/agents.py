@@ -43,14 +43,37 @@ async def trigger_agent(
     agent_type: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Trigger an agent run (records activity, actual execution via Celery)."""
+    """Trigger an agent run (records activity, actual execution via Celery).
+
+    Sandbox gate: checks safety rules before allowing execution.
+    """
     if agent_type not in VALID_AGENT_TYPES:
         raise HTTPException(status_code=404, detail=f"Unknown agent: {agent_type}")
+
+    from app.agents.base import sandbox_verdict, submit_sandbox_action
+
+    # ── Sandbox gate ──────────────────────────────────────────────────────
+    verdict = sandbox_verdict(agent_type)
+    if verdict["verdict"] == "block":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "message": verdict.get("message", "Blocked by sandbox"),
+                "rule_id": verdict.get("rule_id"),
+                "verdict": "block",
+            },
+        )
+    if verdict["verdict"] == "pending":
+        record = submit_sandbox_action(agent_type, summary=f"Manual trigger: {agent_type}")
+        return {
+            "message": f"{agent_type} agent queued for human approval",
+            "pending_id": record.get("id"),
+            "verdict": "pending",
+        }
 
     await log_activity(
         db, agent_type=agent_type, action="triggered",
         summary=f"{agent_type} agent triggered manually",
     )
 
-    return {"message": f"{agent_type} agent triggered"}
-    return {"message": f"{agent_type} agent triggered (mock)"}
+    return {"message": f"{agent_type} agent triggered", "verdict": "allow"}

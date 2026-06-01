@@ -1,8 +1,9 @@
-"""Base agent system — call_llm, agent registry, and mock mode."""
+"""Base agent system — call_llm, agent registry, sandbox, and mock mode."""
 
 import asyncio
 import json
 import os
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,9 +15,68 @@ from app.services.model_router import (
     fallback_chain,
     select_model,
 )
+from app.services.sandbox_service import (
+    SANDBOX_ENABLED,
+    check_action,
+    submit_pending_action,
+)
 
 # Global agent registry
 agent_map: dict[str, type["BasePolsiaAgent"]] = {}
+
+# ─── Sandbox Helpers ─────────────────────────────────────────────────────────
+# Agent-type-based sandbox rules checked at trigger time.
+# Two levels: "approval" (queue for HQ review) and "block" (reject outright).
+
+_AGENT_SANDBOX_RULES: dict[str, str] = {
+    # agent_type → rule_id
+    "finance": "finance_change",
+    "deployment": "finance_change",
+    "deploy_agent": "finance_change",
+    "email_outreach": "external_comms",
+    "social_media": "external_comms",
+    "ads_management": "external_comms",
+    "order_scanner": "warn_trigger",
+    "customer_support": "external_comms",
+    "lead_nurturing": "external_comms",
+    "order_fulfiller": "order_fulfill",
+}
+
+
+def sandbox_verdict(agent_type: str, action_type: str = "trigger_agent") -> dict[str, Any]:
+    """Evaluate an agent‐level action against the sandbox.
+
+    Returns one of:
+      ``{"verdict": "allow"}``
+      ``{"verdict": "block", "rule_id": …, "message": …}``
+      ``{"verdict": "pending", "rule_id": …, "message": …}``
+    """
+    rule_id = _AGENT_SANDBOX_RULES.get(agent_type)
+    if rule_id is None:
+        return {"verdict": "allow", "rule_id": None, "message": "No matching rule"}
+
+    result = check_action(action_type=action_type, agent_type=agent_type)
+    if result["verdict"] in ("block", "pending"):
+        return result
+
+    return {"verdict": "allow", "rule_id": None, "message": "Action allowed"}
+
+
+def submit_sandbox_action(
+    agent_type: str,
+    action_type: str = "trigger_agent",
+    summary: str | None = None,
+    metadata: dict | None = None,
+) -> dict[str, Any]:
+    """Submit an agent trigger for human approval and return the pending record."""
+    return submit_pending_action(
+        action_type=action_type,
+        agent_type=agent_type,
+        summary=summary or f"{agent_type} agent execution requested",
+        payload=metadata or {},
+        rule_id=_AGENT_SANDBOX_RULES.get(agent_type),
+    )
+
 
 MOCK_RESPONSE = {
     "result": "ok",
