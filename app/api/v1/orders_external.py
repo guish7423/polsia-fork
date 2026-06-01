@@ -89,6 +89,29 @@ async def accept_order(order_id: int, assigned_agent: str = ""):
         return format_order(order)
 
 
+@router.post("/orders/external/{order_id}/demo-deploy")
+async def demo_deploy_order(order_id: int):
+    """Run DeployAgent on an order to generate a deployment plan (demo mode)."""
+    from app.agents.deploy_agent import DeployAgent
+
+    async with async_session() as db:
+        order = await get_order(db, order_id)
+        if not order:
+            raise HTTPException(404, "Order not found")
+        if order.assigned_agent != "deploy_agent":
+            order.assigned_agent = "deploy_agent"
+
+        agent = DeployAgent()
+        plan = await agent.plan_deployment(db, order)
+        await update_order_status(db, order_id, "in_progress")
+
+        return {
+            "order_id": order_id,
+            "status": "in_progress",
+            "plan": plan,
+        }
+
+
 @router.post("/orders/external/{order_id}/fulfill")
 async def fulfill_order_endpoint(order_id: int):
     """Run AI fulfillment on an accepted order."""
