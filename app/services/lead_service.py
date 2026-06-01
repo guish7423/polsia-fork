@@ -1,0 +1,72 @@
+"""Lead service — CRUD + status transitions for sales inquiries."""
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.lead import Lead
+
+VALID_STATUSES = ("new", "contacted", "qualified", "proposal", "negotiation", "won", "lost")
+
+
+async def create_lead(db: AsyncSession, data: dict) -> Lead:
+    lead = Lead(
+        name=data["name"],
+        email=data["email"],
+        company=data.get("company"),
+        phone=data.get("phone"),
+        product_interest=data.get("product_interest"),
+        budget_range=data.get("budget_range"),
+        message=data.get("message"),
+        status=data.get("status", "new"),
+        source_page=data.get("source_page"),
+        source_url=data.get("source_url"),
+    )
+    db.add(lead)
+    await db.flush()
+    await db.refresh(lead)
+    return lead
+
+
+async def get_leads(
+    db: AsyncSession, status: str | None = None, limit: int = 100, offset: int = 0
+) -> tuple[list[Lead], int]:
+    query = select(Lead)
+    count_query = select(Lead.id)
+    if status:
+        query = query.where(Lead.status == status)
+        count_query = count_query.where(Lead.status == status)
+    total = await db.execute(count_query)
+    total_count = len(total.scalars().all())
+    result = await db.execute(
+        query.order_by(Lead.created_at.desc()).offset(offset).limit(limit)
+    )
+    return list(result.scalars().all()), total_count
+
+
+async def get_lead(db: AsyncSession, lead_id: int) -> Lead | None:
+    result = await db.execute(select(Lead).where(Lead.id == lead_id))
+    return result.scalar_one_or_none()
+
+
+async def update_lead_status(db: AsyncSession, lead_id: int, status: str) -> Lead | None:
+    if status not in VALID_STATUSES:
+        raise ValueError(f"Invalid status: {status}. Must be one of {VALID_STATUSES}")
+    result = await db.execute(
+        update(Lead).where(Lead.id == lead_id).values(status=status).returning(Lead)
+    )
+    await db.commit()
+    return result.scalar_one_or_none()
+
+
+async def get_leads_summary(db: AsyncSession) -> dict:
+    result = await db.execute(select(Lead))
+    all_leads = list(result.scalars().all())
+    status_counts = {}
+    for l in all_leads:
+        s = l.status
+        status_counts[s] = status_counts.get(s, 0) + 1
+    return {
+        "total": len(all_leads),
+        "status_distribution": status_counts,
+        "new_count": status_counts.get("new", 0),
+    }
