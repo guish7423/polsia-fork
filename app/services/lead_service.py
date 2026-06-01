@@ -58,6 +58,34 @@ async def update_lead_status(db: AsyncSession, lead_id: int, status: str) -> Lea
     return result.scalar_one_or_none()
 
 
+async def convert_lead_to_order(db: AsyncSession, lead_id: int, tier: str = "basic") -> dict | None:
+    """Convert a qualified lead into a CrossDeploy external order."""
+    from app.models.external_order import ExternalOrder
+    from app.services.order_scanner_service import create_order
+
+    lead = await get_lead(db, lead_id)
+    if not lead:
+        return None
+
+    tiers = {"basic": {"title": f"CrossDeploy Basic — {lead.product_interest or lead.name}", "price": 2000, "currency": "CNY"},
+             "standard": {"title": f"CrossDeploy Standard — {lead.product_interest or lead.name}", "price": 3000, "currency": "CNY"},
+             "enterprise": {"title": f"CrossDeploy Enterprise — {lead.product_interest or lead.name}", "price": 5000, "currency": "CNY"}}
+    cfg = tiers.get(tier, tiers["basic"])
+
+    order = await create_order(
+        db,
+        title=cfg["title"],
+        platform="internal",
+        budget_min=cfg["price"],
+        budget_max=cfg["price"],
+        currency=cfg["currency"],
+        description=lead.message,
+        requirements=f"Client: {lead.name} <{lead.email}> | Company: {lead.company or 'N/A'} | Product interest: {lead.product_interest or 'N/A'} | Budget: {lead.budget_range or 'N/A'}",
+    )
+    await update_lead_status(db, lead_id, "won")
+    return {"order_id": order.id, "tier": tier, "title": cfg["title"], "status": order.status}
+
+
 async def get_leads_summary(db: AsyncSession) -> dict:
     result = await db.execute(select(Lead))
     all_leads = list(result.scalars().all())

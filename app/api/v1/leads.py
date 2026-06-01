@@ -82,6 +82,18 @@ async def get_lead_endpoint(lead_id: int, db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.post("/leads/{lead_id}/convert")
+async def convert_lead(lead_id: int, data: dict = {}, db: AsyncSession = Depends(get_db)):
+    """Convert a qualified lead into a CrossDeploy order."""
+    from app.services.lead_service import convert_lead_to_order
+
+    tier = data.get("tier", "basic")
+    result = await convert_lead_to_order(db, lead_id, tier)
+    if not result:
+        raise HTTPException(404, "Lead not found")
+    return {"ok": True, **result}
+
+
 @router.patch("/leads/{lead_id}/status")
 async def update_status(lead_id: int, data: dict, db: AsyncSession = Depends(get_db)):
     new_status = data.get("status")
