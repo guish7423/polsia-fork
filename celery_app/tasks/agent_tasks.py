@@ -52,6 +52,12 @@ def run_order_fulfill(self):
 
 
 @shared_task(bind=True)
+def run_deploy_sweep(self):
+    """Deploy: plan and execute deployment orders."""
+    return run_agent("deploy_agent")
+
+
+@shared_task(bind=True)
 def run_lead_nurture(self):
     """Nurture: follow up with new leads."""
     return run_agent("lead_nurturing")

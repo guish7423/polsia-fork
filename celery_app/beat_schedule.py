@@ -27,6 +27,18 @@ beat_schedule = {
         "schedule": crontab(minute=30, hour="*/3"),
         "options": {"queue": "agents"},
     },
+    # Every 2h: fulfill accepted orders
+    "order-fulfill-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_fulfill_sweep",
+        "schedule": crontab(minute=0, hour="*/2"),
+        "options": {"queue": "agents"},
+    },
+    # Every 4h: fulfill accepted orders
+    "deploy-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_deploy_sweep",
+        "schedule": crontab(minute=30, hour="*/4"),
+        "options": {"queue": "agents"},
+    },
     # Every 4h: scan external platforms for new orders
     "order-scan-sweep": {
         "task": "celery_app.tasks.agent_tasks.run_order_scan",

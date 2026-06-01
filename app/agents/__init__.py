@@ -9,12 +9,11 @@ from app.agents import (  # noqa: F401
     code_generation,
     competitor_research,
     customer_support,
+    deploy_agent,
     deployment,
     email_outreach,
     finance,
-    lead_nurturing,
     orchestrator,
-    order_fulfiller,
     order_scanner,
     social_media,
 )
