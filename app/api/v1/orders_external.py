@@ -86,6 +86,7 @@ async def accept_order(order_id: int, assigned_agent: str = ""):
         )
         if not order:
             raise HTTPException(404, "Order not found")
+        await db.commit()
         return format_order(order)
 
 
@@ -93,6 +94,9 @@ async def accept_order(order_id: int, assigned_agent: str = ""):
 async def demo_deploy_order(order_id: int):
     """Run DeployAgent on an order to generate a deployment plan (demo mode)."""
     from app.agents.deploy_agent import DeployAgent
+    from app.models.external_order import ExternalOrder
+    from sqlalchemy import select, update
+    import json
 
     async with async_session() as db:
         order = await get_order(db, order_id)
@@ -103,7 +107,13 @@ async def demo_deploy_order(order_id: int):
 
         agent = DeployAgent()
         plan = await agent.plan_deployment(db, order)
+        # Persist plan to provider_notes for portal retrieval
+        await db.execute(
+            update(ExternalOrder).where(ExternalOrder.id == order_id)
+            .values(provider_notes=json.dumps(plan, ensure_ascii=False))
+        )
         await update_order_status(db, order_id, "in_progress")
+        await db.commit()
 
         return {
             "order_id": order_id,

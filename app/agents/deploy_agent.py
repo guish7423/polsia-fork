@@ -56,12 +56,61 @@ class DeployAgent(BasePolsiaAgent):
             plan_prompt, system_prompt=DEPLOY_AGENT_SYSTEM_PROMPT
         )
 
+        # Fallback plan if LLM returns empty/invalid
+        FALLBACK_PLANS = {
+            "basic": {
+                "plan_summary": "Single-service Docker deployment with domain and SSL",
+                "steps": [
+                    {"step": 1, "action": "环境准备 — 安装 Docker + Docker Compose", "command": "apt install docker.io docker-compose-v2 && systemctl enable docker", "expected_result": "Docker 服务运行中"},
+                    {"step": 2, "action": "代码克隆与项目配置", "command": "git clone <repo> && cd <project> && cp .env.example .env", "expected_result": "项目代码就绪"},
+                    {"step": 3, "action": "Docker 构建与启动", "command": "docker compose build && docker compose up -d", "expected_result": "所有容器正常运行"},
+                    {"step": 4, "action": "Nginx 反向代理配置", "command": "cp nginx.conf /etc/nginx/sites-available/<project> && ln -sf", "expected_result": "域名指向服务"},
+                    {"step": 5, "action": "SSL 证书配置 (Let's Encrypt)", "command": "certbot --nginx -d <domain>", "expected_result": "HTTPS 正常访问"},
+                    {"step": 6, "action": "健康检查端点验证", "command": "curl https://<domain>/health", "expected_result": "HTTP 200"},
+                ],
+                "estimated_hours": 2,
+                "deliverables": ["Dockerfile", "docker-compose.yml", "nginx.conf", "systemd service"],
+            },
+            "standard": {
+                "plan_summary": "Multi-service Docker Compose stack with CI/CD and monitoring",
+                "steps": [
+                    {"step": 1, "action": "基础设施 — Docker + Compose + PostgreSQL + Redis", "command": "apt install docker.io docker-compose-v2 && docker compose up -d db redis", "expected_result": "数据库和缓存运行中"},
+                    {"step": 2, "action": "应用容器化 — FastAPI + Next.js 双服务", "command": "docker compose build api frontend", "expected_result": "两个镜像构建完成"},
+                    {"step": 3, "action": "Nginx 路由配置 — /api → FastAPI, / → Next.js", "command": "配置 nginx.conf 反向代理", "expected_result": "前后端路由正确"},
+                    {"step": 4, "action": "SSL + 域名绑定", "command": "certbot --nginx -d <domain> -d api.<domain>", "expected_result": "HTTPS 全站可用"},
+                    {"step": 5, "action": "GitHub Actions CI/CD 流水线", "command": "配置 .github/workflows/deploy.yml", "expected_result": "代码推送自动部署"},
+                    {"step": 6, "action": "Prometheus + Grafana 监控", "command": "docker compose -f monitoring.yml up -d", "expected_result": "监控面板可用"},
+                    {"step": 7, "action": "数据库备份自动化", "command": "crontab -e 添加每日备份", "expected_result": "每日备份到对象存储"},
+                    {"step": 8, "action": "负载测试与验收", "command": "ab -n 1000 -c 10 https://<domain>/health", "expected_result": "P99 < 200ms"},
+                ],
+                "estimated_hours": 6,
+                "deliverables": ["docker-compose.yml", "nginx.conf", ".github/workflows/deploy.yml", "prometheus.yml", "backup.sh"],
+            },
+            "enterprise": {
+                "plan_summary": "K3s Kubernetes cluster with HPA, monitoring, and GitOps",
+                "steps": [
+                    {"step": 1, "action": "K3s 集群安装", "command": "curl -sfL https://get.k3s.io | sh -", "expected_result": "kubectl get nodes — Ready"},
+                    {"step": 2, "action": "Helm + Ingress Controller", "command": "helm install ingress-nginx ingress-nginx/ingress-nginx", "expected_result": "Ingress 就绪"},
+                    {"step": 3, "action": "应用容器化 + Helm Chart", "command": "helm create <project> && 配置 values.yaml", "expected_result": "Helm 包就绪"},
+                    {"step": 4, "action": "K8s 部署 — Deployment + Service + Ingress", "command": "helm install <project> ./<project>-chart", "expected_result": "应用运行中"},
+                    {"step": 5, "action": "HPA 自动伸缩", "command": "kubectl autoscale deployment <app> --cpu-percent=70 --min=2 --max=10", "expected_result": "负载增加时自动扩容"},
+                    {"step": 6, "action": "Prometheus + Grafana 企业监控", "command": "helm install prometheus prometheus-community/kube-prometheus-stack", "expected_result": "集群监控面板"},
+                    {"step": 7, "action": "GitOps — ArgoCD 流水线", "command": "kubectl create namespace argocd && kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml", "expected_result": "ArgoCD UI 可用"},
+                    {"step": 8, "action": "灾备 — Velero + 对象存储备份", "command": "velero install --provider aws --bucket backups --backup-location-config region=us-east-1", "expected_result": "定时集群备份"},
+                ],
+                "estimated_hours": 16,
+                "deliverables": ["Helm chart", "K8s manifests", "ArgoCD config", "prometheus-rules.yml", "velero schedule"],
+            },
+        }
+
+        plan = FALLBACK_PLANS.get(tier, FALLBACK_PLANS["basic"])
+        steps = llm_result.get("steps", [])
         return {
             "order_id": order.id,
             "title": order.title,
             "tier": llm_result.get("tier", tier),
-            "plan_summary": llm_result.get("plan_summary", ""),
-            "steps": llm_result.get("steps", []),
-            "estimated_hours": llm_result.get("estimated_hours", 2),
-            "deliverables": llm_result.get("deliverables", []),
+            "plan_summary": llm_result.get("plan_summary", plan["plan_summary"]),
+            "steps": steps if steps and len(steps) > 0 else plan["steps"],
+            "estimated_hours": llm_result.get("estimated_hours", plan["estimated_hours"]),
+            "deliverables": llm_result.get("deliverables", plan["deliverables"]),
         }
