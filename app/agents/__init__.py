@@ -14,6 +14,7 @@ from app.agents import (  # noqa: F401
     email_outreach,
     evolution,
     finance,
+    market_intel,
     monitor,
     orchestrator,
     order_fulfiller,

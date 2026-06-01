@@ -19,6 +19,7 @@ VALID_AGENT_TYPES = [
     "evolution",
     "finance",
     "lead_nurturing",
+    "market_intel",
     "monitor",
     "orchestrator",
     "order_fulfiller",

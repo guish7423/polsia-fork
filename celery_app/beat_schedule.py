@@ -69,4 +69,10 @@ beat_schedule = {
         "schedule": crontab(hour=23, minute=0),
         "options": {"queue": "agents"},
     },
+    # Daily at 7:00: market intelligence briefing — scan web for news/competitors/opportunities
+    "briefing-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_briefing_sweep",
+        "schedule": crontab(hour=7, minute=0),
+        "options": {"queue": "agents"},
+    },
 }

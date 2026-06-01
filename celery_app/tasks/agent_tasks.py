@@ -79,3 +79,9 @@ def run_ads_stripe_sync(self):
 def run_evolution_sweep(self):
     """Evolution: analyze agent performance and drive improvements."""
     return run_agent("evolution")
+
+
+@shared_task(bind=True)
+def run_briefing_sweep(self):
+    """Intel: collect market intelligence daily briefing."""
+    return run_agent("market_intel")
