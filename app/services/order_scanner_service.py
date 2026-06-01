@@ -143,62 +143,213 @@ DIVERSITY_POOLS: dict[str, list[dict]] = {
 }
 
 
-async def fetch_upwork_rss(keywords: list[str] | None = None) -> list[dict]:
-    """Fetch real job listings from Upwork RSS feed."""
+# ── Real job sources (free, no API key needed) ──────────────────────────
+
+DEPLOYMENT_KEYWORDS = [
+    "deploy", "devops", "kubernetes", "docker", "ci/cd", "infrastructure",
+    "backend", "api", "fullstack", "python", "fastapi", "cloud",
+    "site reliability", "platform engineer",
+]
+
+RELEVANT_TAGS = {
+    "deploy", "devops", "docker", "kubernetes", "k8s", "python", "fastapi",
+    "backend", "fullstack", "api", "node", "typescript", "react", "nextjs",
+    "aws", "gcp", "cloud", "infrastructure", "ci/cd", "terraform", "helm",
+    "linux", "nginx", "postgresql", "redis",
+}
+
+
+def _is_relevant(title: str, tags: list[str] | None, desc: str) -> bool:
+    """Check if a job listing is relevant to CrossDeploy services."""
+    if not title:
+        return False
+    ttl = title.lower()
+    tag_set = {t.lower() for t in tags} if tags else set()
+    text = f"{ttl} {desc[:500].lower()}"
+    if tag_set & RELEVANT_TAGS:
+        return True
+    for kw in DEPLOYMENT_KEYWORDS:
+        if kw in ttl or kw in text:
+            return True
+    return False
+
+
+async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
+    """Fetch real tech job listings from RemoteOK API (free, no auth)."""
     if keywords is None:
-        keywords = ["python", "fastapi", "react", "nextjs", "docker", "kubernetes", "deploy"]
+        keywords = DEPLOYMENT_KEYWORDS[:5]
     kw = "+".join(keywords[:3])
-    url = f"https://www.upwork.com/ab/feed/job/skill?q={kw}&sort=recency&paging=0%3B10"
+    url = f"https://remoteok.com/api?tag={kw}"
     jobs = []
     try:
         import httpx
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            resp = await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+                    "Accept": "application/json",
+                },
+            )
             if resp.status_code == 200:
-                import xml.etree.ElementTree as ET
-                root = ET.fromstring(resp.text)
-                ns = {"atom": "http://www.w3.org/2005/Atom"}
-                for entry in root.findall(".//atom:entry", ns)[:8]:
-                    title_el = entry.find("atom:title", ns)
-                    summary_el = entry.find("atom:summary", ns)
-                    title = title_el.text.strip() if title_el is not None and title_el.text else ""
-                    summary = summary_el.text.strip()[:500] if summary_el is not None and summary_el.text else ""
-                    if title:
-                        jobs.append({"title": title, "description": summary, "platform": "upwork"})
+                data = resp.json()
+                raw = data[1:] if isinstance(data, list) and len(data) > 1 else []
+                for item in raw[:15]:
+                    title = item.get("position", "").strip()
+                    tags = item.get("tags", [])
+                    desc = item.get("description", "")[:800]
+                    if _is_relevant(title, tags, desc):
+                        salary_min = item.get("salary_min")
+                        salary_max = item.get("salary_max")
+                        jobs.append({
+                            "title": title,
+                            "description": desc,
+                            "platform": "remoteok",
+                            "tags": tags[:5],
+                            "salary_min": float(salary_min) if salary_min else None,
+                            "salary_max": float(salary_max) if salary_max else None,
+                            "source_url": item.get("url", ""),
+                        })
+            else:
+                print(f"[scanner] RemoteOK returned {resp.status_code}")
     except Exception as e:
-        print(f"[scanner] Upwork RSS fetch failed: {e}")
+        print(f"[scanner] RemoteOK API fetch failed: {e}")
     return jobs
 
 
+async def fetch_careernest_api() -> list[dict]:
+    """Fetch devops/cloud contract jobs from Career Nest (free, no auth, 30 req/min).
+    1.5M+ jobs, updated every 6h."""
+    jobs = []
+    try:
+        import httpx
+        # DevOps & Cloud + contract/freelance type
+        urls = [
+            "https://careernest.cloud/api/feed?category=devops-cloud&type=contract&limit=20",
+            "https://careernest.cloud/api/feed?category=software-development&type=contract&limit=20",
+        ]
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            for url in urls:
+                resp = await client.get(
+                    url,
+                    headers={"User-Agent": "CrossWave/1.0 (order scanner)", "Accept": "application/json"},
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                items = data if isinstance(data, list) else data.get("jobs", data.get("data", []))
+                for item in items[:10]:
+                    title = (item.get("title") or item.get("position") or item.get("job_title", "")).strip()
+                    desc = (item.get("description") or item.get("summary", ""))[:800]
+                    tags = item.get("tags") or item.get("skills", [])
+                    if _is_relevant(title, tags if isinstance(tags, list) else [], desc):
+                        jobs.append({
+                            "title": title,
+                            "description": desc,
+                            "platform": "careernest",
+                            "tags": tags[:5] if isinstance(tags, list) else [],
+                            "salary_min": None,
+                            "salary_max": None,
+                            "source_url": item.get("job_url") or item.get("url", ""),
+                        })
+    except Exception as e:
+        print(f"[scanner] Career Nest API fetch failed: {e}")
+    return jobs
+
+
+async def fetch_remotejobs_api() -> list[dict]:
+    """Fetch devops/contract jobs from RemoteJobs.org (free, no auth, no hard rate limit)."""
+    jobs = []
+    try:
+        import httpx
+        urls = [
+            "https://remotejobs.org/api/v1/jobs?category=devops&type=contract&limit=20",
+            "https://remotejobs.org/api/v1/jobs?category=programming&type=contract&limit=20",
+        ]
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            for url in urls:
+                resp = await client.get(
+                    url,
+                    headers={"User-Agent": "CrossWave/1.0", "Accept": "application/json"},
+                )
+                if resp.status_code != 200:
+                    continue
+                data = resp.json()
+                items = data if isinstance(data, list) else data.get("jobs", data.get("results", []))
+                for item in items[:10]:
+                    title = item.get("title", "").strip()
+                    if not title:
+                        continue
+                    tags_raw = item.get("tags") or item.get("skills") or []
+                    tags = tags_raw if isinstance(tags_raw, list) else []
+                    desc = (item.get("description") or item.get("summary", ""))[:800]
+                    if _is_relevant(title, tags, desc):
+                        jobs.append({
+                            "title": title,
+                            "description": desc,
+                            "platform": "remotejobs",
+                            "tags": tags[:5],
+                            "salary_min": None,
+                            "salary_max": None,
+                            "source_url": item.get("url") or item.get("apply_url", ""),
+                        })
+    except Exception as e:
+        print(f"[scanner] RemoteJobs API fetch failed: {e}")
+    return jobs
+
+
+# ── Multi-source scanning ──────────────────────────────────────────────
+
+
+async def _save_jobs(db: AsyncSession, jobs: list[dict], platform_map: str) -> list[ExternalOrder]:
+    """Save a list of scanned jobs as ExternalOrder rows, deduplicating by title."""
+    new_orders = []
+    for job in jobs:
+        exists = await db.execute(
+            select(ExternalOrder).where(
+                ExternalOrder.platform == platform_map,
+                ExternalOrder.title == job["title"][:200],
+            )
+        )
+        if exists.scalar_one_or_none():
+            continue
+        budget_min = job.get("salary_min") or random.randint(300, 3000)
+        budget_max = job.get("salary_max") or budget_min * 2
+        order = await create_order(
+            db,
+            title=job["title"][:200],
+            platform=platform_map,
+            external_id=job.get("source_url", "").split("/")[-1][:64] or f"{job['platform']}_{random.randint(10000, 99999)}",
+            budget_min=budget_min,
+            budget_max=budget_max,
+            currency="USD",
+            description=job.get("description", "")[:1000],
+            source_url=job.get("source_url", ""),
+        )
+        new_orders.append(order)
+    return new_orders
+
+
 async def scan_platform(db: AsyncSession, platform: str) -> list[ExternalOrder]:
-    """Scan a platform for new orders. Uses RSS for Upwork, diversity pools for others."""
+    """Scan a platform for new orders.
+    For upwork: real sources (RemoteOK + Career Nest + RemoteJobs.org).
+    For others: diversity pools + static templates."""
     new_orders = []
 
-    # For Upwork, try real RSS first
-    rss_jobs = []
     if platform == "upwork":
-        rss_jobs = await fetch_upwork_rss()
-        for job in rss_jobs:
-            exists = await db.execute(
-                select(ExternalOrder).where(
-                    ExternalOrder.platform == "upwork",
-                    ExternalOrder.title == job["title"][:200],
-                )
-            )
-            if exists.scalar_one_or_none():
+        # 3 real sources in parallel
+        real_sources = await asyncio.gather(
+            fetch_remoteok_api(),
+            fetch_careernest_api(),
+            fetch_remotejobs_api(),
+            return_exceptions=True,
+        )
+        for src_result in real_sources:
+            if isinstance(src_result, BaseException):
+                print(f"[scanner] Source failed: {src_result}")
                 continue
-            budget = random.randint(500, 5000)
-            order = await create_order(
-                db,
-                title=job["title"][:200],
-                platform="upwork",
-                external_id=f"upwork_rss_{random.randint(10000, 99999)}",
-                budget_min=budget * 0.5,
-                budget_max=budget * 2,
-                currency="USD",
-                description=job.get("description", "")[:1000],
-            )
-            new_orders.append(order)
+            saved = await _save_jobs(db, src_result, platform)
+            new_orders.extend(saved)
 
     # Diversity pool — pick 2-3 random templates not used recently
     pool = DIVERSITY_POOLS.get(platform, [])
