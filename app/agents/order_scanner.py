@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.base import BasePolsiaAgent, register_agent
 from app.agents.prompts import ORDER_SCANNER_SYSTEM_PROMPT
 from app.models.external_order import ExternalOrder
-from app.services.order_scanner_service import update_order_status
+from app.services.order_scanner_service import update_order_status, get_order
 
 
 @register_agent
@@ -60,6 +60,13 @@ class OrderScannerAgent(BasePolsiaAgent):
             score_reason=reason,
             assigned_agent=assigned,
         )
+
+        # Auto-generate proposal when order is accepted
+        if new_status == "accepted":
+            from app.services.proposal_service import auto_generate_proposal
+            refreshed = await get_order(db, order.id)
+            if refreshed:
+                await auto_generate_proposal(db, refreshed)
 
         return {
             "order_id": order.id,

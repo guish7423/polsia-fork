@@ -85,6 +85,8 @@ async def evaluate_order_endpoint(order_id: int):
 
 @router.post("/orders/external/{order_id}/accept")
 async def accept_order(order_id: int, assigned_agent: str = ""):
+    from app.services.proposal_service import auto_generate_proposal
+
     async with async_session() as db:
         order = await update_order_status(
             db, order_id, "accepted",
@@ -92,6 +94,8 @@ async def accept_order(order_id: int, assigned_agent: str = ""):
         )
         if not order:
             raise HTTPException(404, "Order not found")
+        # Auto-generate proposal for scored (≥6) orders
+        await auto_generate_proposal(db, order)
         await db.commit()
         return format_order(order)
 
