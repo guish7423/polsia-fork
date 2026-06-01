@@ -35,6 +35,8 @@ async def init_db():
 
     # Lightweight migrations for column additions
     async with engine.begin() as conn:
+        # Trigger table creation for new models
+        await conn.run_sync(Base.metadata.create_all)
         for col_sql in [
             "ALTER TABLE external_orders ADD COLUMN deliverables JSON",
             "ALTER TABLE external_orders ADD COLUMN delivery_notes TEXT",

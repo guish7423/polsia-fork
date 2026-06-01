@@ -15,6 +15,7 @@ from app.models.finance import RevenueSnapshot, ExpenseRecord
 from app.models.report import DailyReport
 from app.models.external_order import ExternalOrder
 from app.models.lead import Lead
+from app.models.proposal import Proposal
 
 __all__ = [
     "Base",
@@ -38,4 +39,5 @@ __all__ = [
     "DailyReport",
     "Lead",
     "ExternalOrder",
+    "Proposal",
 ]
