@@ -8,16 +8,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.task import Task
 
 VALID_AGENT_TYPES = [
-    "orchestrator",
-    "business_planning",
-    "competitor_research",
-    "social_media",
-    "email_outreach",
-    "customer_support",
     "ads_management",
+    "business_planning",
     "code_generation",
-    "finance",
+    "competitor_research",
+    "customer_support",
+    "deploy_agent",
     "deployment",
+    "email_outreach",
+    "evolution",
+    "finance",
+    "lead_nurturing",
+    "monitor",
+    "orchestrator",
+    "order_fulfiller",
+    "order_scanner",
+    "social_media",
 ]
 
 
