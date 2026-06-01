@@ -51,6 +51,12 @@ beat_schedule = {
         "schedule": crontab(minute=15, hour="*"),
         "options": {"queue": "agents"},
     },
+    # Every 5min: monitor all services health
+    "monitor-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_monitor_sweep",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "agents"},
+    },
     # Every 6h: sync ad metrics + Stripe failed payments
     "ads-stripe-sync": {
         "task": "celery_app.tasks.agent_tasks.run_ads_stripe_sync",

@@ -64,6 +64,12 @@ def run_lead_nurture(self):
 
 
 @shared_task(bind=True)
+def run_monitor_sweep(self):
+    """Monitor: check all service health."""
+    return run_agent("monitor")
+
+
+@shared_task(bind=True)
 def run_ads_stripe_sync(self):
     """Sync: collect ad metrics and run ads management."""
     return run_agent("ads_management")
