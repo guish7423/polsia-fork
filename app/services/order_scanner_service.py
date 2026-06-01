@@ -158,34 +158,52 @@ RELEVANT_TAGS = {
     "linux", "nginx", "postgresql", "redis",
 }
 
+IRRELEVANT_KEYWORDS = [
+    "sales", "hr ", "human resource", "recruiter", "executive assistant",
+    "vice president", "chief ", "manager", "director", "coordinator",
+    "nurse", "driver", "cleaner", "cook", "chef", "teacher", "instructor",
+    "attorney", "lawyer", "accountant", "receptionist", "cashier",
+    "marketing", "social media", "content writer", "copywriter",
+]
+
 
 def _is_relevant(title: str, tags: list[str] | None, desc: str) -> bool:
-    """Check if a job listing is relevant to CrossDeploy services."""
+    """Check if a job listing is relevant to CrossDeploy services.
+    Stricter: requires tag OR title match; filters out clearly irrelevant roles."""
     if not title:
         return False
     ttl = title.lower()
     tag_set = {t.lower() for t in tags} if tags else set()
     text = f"{ttl} {desc[:500].lower()}"
+
+    # Fast reject: clearly irrelevant roles
+    for ir in IRRELEVANT_KEYWORDS:
+        if ir in ttl:
+            return False
+
+    # Tag match (most reliable)
     if tag_set & RELEVANT_TAGS:
         return True
+
+    # Title keyword match
     for kw in DEPLOYMENT_KEYWORDS:
-        if kw in ttl or kw in text:
+        if kw in ttl:
             return True
-    return False
+
+    # Description match (least reliable) — require AT LEAST 2 keywords in text
+    match_count = sum(1 for kw in DEPLOYMENT_KEYWORDS if kw in text)
+    return match_count >= 2
 
 
 async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
-    """Fetch real tech job listings from RemoteOK API (free, no auth)."""
-    if keywords is None:
-        keywords = DEPLOYMENT_KEYWORDS[:5]
-    kw = "+".join(keywords[:3])
-    url = f"https://remoteok.com/api?tag={kw}"
+    """Fetch real tech job listings from RemoteOK API (free, no auth).
+    Note: tag query param severely limits results (94→1). Fetch all, filter server-side."""
     jobs = []
     try:
         import httpx
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             resp = await client.get(
-                url,
+                "https://remoteok.com/api",
                 headers={
                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
                     "Accept": "application/json",
@@ -194,7 +212,7 @@ async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
             if resp.status_code == 200:
                 data = resp.json()
                 raw = data[1:] if isinstance(data, list) and len(data) > 1 else []
-                for item in raw[:40]:
+                for item in raw:
                     title = item.get("position", "").strip()
                     tags = item.get("tags", [])
                     desc = item.get("description", "")[:800]
@@ -221,13 +239,14 @@ async def fetch_remoteok_api(keywords: list[str] | None = None) -> list[dict]:
 
 async def fetch_careernest_api() -> list[dict]:
     """Fetch devops/cloud jobs from Career Nest (free, no auth, 30 req/min).
-    1.5M+ jobs, updated every 6h. Contract type often empty — query broad categories."""
+    Uses search endpoint since category feed returns 0 for devops-cloud."""
     jobs = []
     try:
         import httpx
         urls = [
-            "https://careernest.cloud/api/feed?category=devops-cloud&limit=30",
-            "https://careernest.cloud/api/feed?category=software-development&limit=30",
+            "https://careernest.cloud/api/search?q=devops&limit=20",
+            "https://careernest.cloud/api/search?q=python+backend&limit=20",
+            "https://careernest.cloud/api/search?q=fullstack&limit=20",
         ]
         async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
             for url in urls:
