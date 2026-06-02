@@ -28,6 +28,8 @@ class ExternalOrder(Base):
     source_url: Mapped[str | None] = mapped_column(String(1000))
     deliverables: Mapped[list | None] = mapped_column(JSON)
     delivery_notes: Mapped[str | None] = mapped_column(Text)
+    execution_status: Mapped[str | None] = mapped_column(String(50), server_default="pending")
+    deploy_dir: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
