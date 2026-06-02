@@ -47,6 +47,15 @@ def run_agent(self, agent_type: str, context: dict | None = None) -> dict:
         async with async_session() as db:
             agent = agent_class()
             result = await agent.run(db, context)
+
+            # ── HITL interrupt gate ────────────────────────────────────
+            # Agent called self.request_interrupt() — task pauses and
+            # waits for human approval via HQ.  State changes *are*
+            # committed so the checkpoint / activity log is preserved.
+            if isinstance(result, dict) and result.get("status") == "interrupt":
+                await db.commit()
+                return result
+
             await db.commit()
             return result
 

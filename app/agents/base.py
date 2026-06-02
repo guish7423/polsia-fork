@@ -207,3 +207,42 @@ class BasePolsiaAgent:
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement run()"
         )
+
+    def request_interrupt(
+        self,
+        reason: str,
+        agent_result: dict | None = None,
+    ) -> dict:
+        """Create a HITL interrupt point during agent execution.
+
+        When an agent encounters a decision that needs human judgment, it
+        calls this method to create an interrupt in the pending queue.
+        The agent should return the resulting dict from ``run()`` so the
+        Celery task pauses and waits for HQ approval.
+
+        Usage inside an agent's ``run()``::
+
+            if budget > 1000:
+                return self.request_interrupt(
+                    reason=f"Budget ${budget} exceeds ${1000} threshold",
+                    agent_result={"budget": budget, "proposal": ...},
+                )
+        """
+        from app.core.interrupt_service import create_interrupt
+
+        iid = create_interrupt(
+            agent_type=self.agent_type,
+            task_id=0,
+            reason=reason,
+            context={
+                "agent_type": self.agent_type,
+                "reason": reason,
+                "agent_result": agent_result or {},
+            },
+        )
+        return {
+            "status": "interrupt",
+            "interrupt_id": iid,
+            "reason": reason,
+            "message": "Awaiting human approval via HQ — interrupt #{iid}",
+        }
