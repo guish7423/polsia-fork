@@ -5,6 +5,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.status_machine import TaskStatus, transition_status
 from app.models.task import Task
 
 VALID_AGENT_TYPES = [
@@ -40,14 +41,17 @@ async def create_task(
     description: str | None = None,
     priority: int = 3,
     source: str = "orchestrator",
+    status: str = "pending",
 ) -> Task:
     """Create a new task with validation."""
+    # 确保初始状态合法
+    _ = transition_status(TaskStatus.PENDING, TaskStatus(status))
     task = Task(
         title=title,
         description=description,
         agent_type=agent_type,
         priority=priority,
-        status="pending",
+        status=status,
         source=source,
     )
     db.add(task)
@@ -80,11 +84,18 @@ async def update_task_status(
     db: AsyncSession, task_id: int, status: str,
     result_summary: str | None = None, error_message: str | None = None,
 ) -> Task | None:
-    """Update a task's status and optional result."""
+    """Update a task's status with state-machine validation.
+
+    Raises ValueError if the transition is illegal.
+    """
     task = await db.get(Task, task_id)
     if not task:
         return None
-    task.status = status
+    # 状态机验证 (str → TaskStatus → 转换校验)
+    current = TaskStatus(task.status) if task.status else TaskStatus.PENDING
+    new = TaskStatus(status)
+    validated = transition_status(current, new)
+    task.status = validated.value
     if result_summary is not None:
         task.result_summary = result_summary
     if error_message is not None:
@@ -110,3 +121,15 @@ async def get_tasks_by_status(db: AsyncSession, status: str) -> int:
     query = select(func.count()).select_from(Task).where(Task.status == status)
     result = await db.execute(query)
     return result.scalar() or 0
+
+
+async def get_paused_or_blocked_count(db: AsyncSession) -> dict[str, int]:
+    """Count paused and blocked tasks for dashboard."""
+    result = {"blocked": 0, "paused": 0, "in_review": 0}
+    for status_key in result:
+        query = select(func.count()).select_from(Task).where(
+            Task.status == status_key
+        )
+        row = await db.execute(query)
+        result[status_key] = row.scalar() or 0
+    return result

@@ -1,4 +1,4 @@
-"""Task model."""
+"""Task model — 任务模型，状态通过 status_machine 约束。"""
 
 from datetime import datetime
 

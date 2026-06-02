@@ -47,6 +47,14 @@ async def test_update_task_status(async_db_session):
     task = await create_task(async_db_session, title="Test", agent_type="finance")
     await async_db_session.commit()
 
+    # 必须走合法路径: pending → in_progress → completed
+    updated = await update_task_status(
+        async_db_session, task.id, "in_progress"
+    )
+    await async_db_session.commit()
+    assert updated is not None
+    assert updated.status == "in_progress"
+
     updated = await update_task_status(
         async_db_session, task.id, "completed", result_summary="Done"
     )
@@ -58,10 +66,22 @@ async def test_update_task_status(async_db_session):
 
 
 @pytest.mark.asyncio
+async def test_update_task_status_blocks_illegal(async_db_session):
+    """非法转换 (pending → completed) 应抛 ValueError。"""
+    import pytest as _pytest
+    from app.core.status_machine import transition_status, TaskStatus
+
+    with _pytest.raises(ValueError, match="Illegal transition"):
+        transition_status(TaskStatus.PENDING, TaskStatus.COMPLETED)
+
+
+@pytest.mark.asyncio
 async def test_get_tasks_filters_by_status(async_db_session):
     await create_task(async_db_session, title="Task A", agent_type="finance")
     t2 = await create_task(async_db_session, title="Task B", agent_type="social_media")
     await async_db_session.commit()
+    # 合法路径
+    await update_task_status(async_db_session, t2.id, "in_progress")
     await update_task_status(async_db_session, t2.id, "completed")
     await async_db_session.commit()
 

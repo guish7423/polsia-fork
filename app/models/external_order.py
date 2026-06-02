@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import DateTime, Float, Integer, String, Text, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.status_machine import OrderStatus
 from app.models.base import Base
 
 
