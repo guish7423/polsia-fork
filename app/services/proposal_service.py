@@ -222,6 +222,7 @@ def format_public_proposal(p: Proposal, order=None) -> dict:
         "content": p.content,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "order_id": p.order_id,
+        "view_token": p.view_token or "",
     }
     if order and hasattr(order, "deliverables") and order.deliverables:
         result["deliverables"] = order.deliverables
