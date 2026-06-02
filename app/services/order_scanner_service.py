@@ -22,6 +22,7 @@ async def create_order(
     description: str | None = None,
     requirements: str | None = None,
     source_url: str | None = None,
+    customer_email: str | None = None,
 ) -> ExternalOrder:
     order = ExternalOrder(
         title=title,
@@ -33,6 +34,7 @@ async def create_order(
         description=description,
         requirements=requirements,
         source_url=source_url,
+        customer_email=customer_email,
     )
     db.add(order)
     await db.flush()

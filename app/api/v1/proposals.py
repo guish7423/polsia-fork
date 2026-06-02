@@ -6,6 +6,11 @@ from app.core.auth import verify_api_key
 from app.core.database import async_session
 from app.models.external_order import ExternalOrder
 from app.services.order_scanner_service import get_order
+from app.config import settings
+from app.services.email_service import (
+    send_proposal_accepted,
+    send_internal_notification,
+)
 from app.services.proposal_service import (
     accept_proposal,
     auto_generate_proposal,
@@ -60,12 +65,14 @@ async def accept_proposal_public(view_token: str):
 
         # Auto-trigger DeployAgent fulfillment
         deploy_plan = None
+        customer_email = None
         if p.order_id:
             result = await db.execute(
                 select(ExternalOrder).where(ExternalOrder.id == p.order_id)
             )
             order = result.scalar_one_or_none()
             if order:
+                customer_email = order.customer_email
                 try:
                     agent = DeployAgent()
                     deploy_plan = await agent.plan_deployment(db, order)
@@ -79,6 +86,26 @@ async def accept_proposal_public(view_token: str):
                     deploy_plan = {"error": str(e), "plan_summary": "Deployment plan generation deferred"}
 
         await db.commit()
+
+        # Send email notifications (non-blocking on failure)
+        view_url = f"{settings.base_url}/quote/{p.view_token}"
+        customer_name = view_token  # fallback — real name extracted from order below
+        if p.order_id:
+            result = await db.execute(select(ExternalOrder).where(ExternalOrder.id == p.order_id))
+            o = result.scalar_one_or_none()
+            if o:
+                customer_email = o.customer_email or customer_email
+                # Derive name from order requirements: "Client: Name <email>"
+                if o.requirements and o.requirements.startswith("Client: "):
+                    customer_name = o.requirements.split("<")[0].replace("Client: ", "").strip()
+                if customer_email:
+                    send_proposal_accepted(customer_name, customer_email, view_url, o.title or "部署服务")
+                    send_internal_notification(
+                        "Proposal Accepted 🎉",
+                        f"{customer_name} accepted proposal #{p.id} — {o.title}",
+                        view_url,
+                    )
+
         return {
             "status": "accepted",
             "proposal_id": p.id,
@@ -101,6 +128,12 @@ async def reject_proposal_public(view_token: str, data: dict = {}):
         if not updated:
             raise HTTPException(500, "Failed to reject proposal")
         await db.commit()
+        # Internal notification
+        send_internal_notification(
+            "Proposal Rejected",
+            f"Proposal #{p.id} was rejected.\nReason: {reason or 'No reason given'}",
+            f"{settings.base_url}/quote/{p.view_token}",
+        )
         return {"status": "rejected", "proposal_id": p.id, "order_id": p.order_id}
 
 

@@ -20,6 +20,8 @@ from app.services.order_deliverable_service import (
     save_deliverables,
 )
 from app.services.order_scanner_service import get_order
+from app.services.email_service import send_proposal_sent
+from app.config import settings
 
 router = APIRouter(tags=["quick-quote"])
 
@@ -109,10 +111,22 @@ async def quick_quote(data: dict, db: AsyncSession = Depends(get_db)):
     if not updated:
         raise HTTPException(500, "Failed to mark proposal as sent")
 
+    # 7. Send email notification to customer (non-blocking on failure)
+    tiers_label = {"basic": "¥2,000", "standard": "¥3,000", "enterprise": "¥5,000"}
+    view_url = f"{settings.base_url}/quote/{proposal.view_token}"
+    send_proposal_sent(
+        name=name,
+        email=email,
+        view_url=view_url,
+        amount=tiers_label.get(tier, tiers_label["basic"]),
+        summary=proposal.summary or f"Quick Quote for {order.title}",
+        order_title=order.title,
+    )
+
     return {
         "order_id": order_id,
         "proposal_id": proposal.id,
         "status": "sent",
         "view_token": proposal.view_token,
-        "view_url": f"http://crosswave.app/quote/{proposal.view_token}",
+        "view_url": view_url,
     }

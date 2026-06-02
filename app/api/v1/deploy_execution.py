@@ -7,6 +7,8 @@ from app.core.database import async_session
 from app.models.external_order import ExternalOrder
 from app.services import deploy_execution_engine as engine
 from app.services.order_deliverable_service import get_deliverables
+from app.services.email_service import send_deliverables_ready, send_internal_notification
+from app.config import settings
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
 
@@ -58,6 +60,24 @@ async def execute_deploy(order_id: int):
                 deploy_dir=result.get("deploy_dir"),
             )
         )
+
+        # Send notification if execution completed successfully
+        if result.get("state") == "completed":
+            view_url = f"{settings.base_url}/quote/{order_id}"
+            if order.customer_email:
+                # Derive customer name from requirements
+                customer_name = order.title or "Customer"
+                if order.requirements and order.requirements.startswith("Client: "):
+                    customer_name = order.requirements.split("<")[0].replace("Client: ", "").strip()
+                send_deliverables_ready(
+                    customer_name, order.customer_email, view_url, order.title or "部署服务"
+                )
+            send_internal_notification(
+                "Deliverables Ready ✅",
+                f"Order #{order_id} ({order.title}) — {result.get('file_count', 0)} files, {result.get('archive_size', 'N/A')}",
+                view_url,
+            )
+
         await db.commit()
 
     return result

@@ -80,6 +80,7 @@ async def convert_lead_to_order(db: AsyncSession, lead_id: int, tier: str = "bas
         budget_max=cfg["price"],
         currency=cfg["currency"],
         description=lead.message,
+        customer_email=lead.email,
         requirements=f"Client: {lead.name} <{lead.email}> | Company: {lead.company or 'N/A'} | Product interest: {lead.product_interest or 'N/A'} | Budget: {lead.budget_range or 'N/A'}",
     )
     await update_lead_status(db, lead_id, "won")

@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     # ChromaDB
     chroma_db_path: str = "./chroma_db"
 
+    # Base URL for frontend links in emails
+    base_url: str = "http://127.0.0.1:9999"
+
+    # Email / SMTP
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = "noreply@crosswave.app"
+    smtp_from_name: str = "CrossWave"
+
     # Schedules (hour of day)
     morning_cycle_hour: int = 6
     evening_cycle_hour: int = 18
