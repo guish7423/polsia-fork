@@ -29,6 +29,9 @@ class ExternalOrder(Base):
     deliverables: Mapped[list | None] = mapped_column(JSON)
     delivery_notes: Mapped[str | None] = mapped_column(Text)
     customer_email: Mapped[str | None] = mapped_column(String(255))
+    payment_status: Mapped[str | None] = mapped_column(String(50), server_default="pending")
+    stripe_session_id: Mapped[str | None] = mapped_column(String(255))
+    amount_paid: Mapped[float | None] = mapped_column(Float)
     execution_status: Mapped[str | None] = mapped_column(String(50), server_default="pending")
     deploy_dir: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(

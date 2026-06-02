@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     # ChromaDB
     chroma_db_path: str = "./chroma_db"
 
+    # Stripe
+    stripe_secret_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_price_lookup: dict = {
+        "basic": "",       # price_xxx for ¥2K
+        "standard": "",    # price_xxx for ¥3K  
+        "enterprise": "",  # price_xxx for ¥5K
+    }
+
     # Base URL for frontend links in emails
     base_url: str = "http://127.0.0.1:9999"
 

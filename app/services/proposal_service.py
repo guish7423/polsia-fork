@@ -281,4 +281,6 @@ def format_public_proposal(p: Proposal, order=None) -> dict:
     }
     if order and hasattr(order, "deliverables") and order.deliverables:
         result["deliverables"] = order.deliverables
+    if order and hasattr(order, "payment_status") and order.payment_status:
+        result["payment_status"] = order.payment_status
     return result
