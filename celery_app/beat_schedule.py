@@ -87,4 +87,10 @@ beat_schedule = {
         "schedule": crontab(hour=10, minute=0),
         "options": {"queue": "agents"},
     },
+    # Weekly on Monday 9:00: generate and email cross-platform KPI report
+    "weekly-report": {
+        "task": "celery_app.tasks.agent_tasks.run_weekly_report",
+        "schedule": crontab(hour=9, minute=0, day_of_week=1),
+        "options": {"queue": "maintenance"},
+    },
 }

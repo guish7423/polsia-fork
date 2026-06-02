@@ -45,3 +45,16 @@ async def init_db():
                 await conn.execute(text(col_sql))
             except Exception:
                 pass  # Column already exists
+
+        # Create weekly_reports table (used by weekly report service)
+        await conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS weekly_reports (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                period_start TEXT NOT NULL,
+                period_end TEXT NOT NULL,
+                summary TEXT,
+                html_content TEXT,
+                recipient_count INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT (datetime('now'))
+            )
+        """))

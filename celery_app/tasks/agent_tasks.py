@@ -4,6 +4,8 @@ import asyncio
 
 from celery import shared_task
 
+from app.services.weekly_report_service import generate_and_email_report
+
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def run_agent(self, agent_type: str, context: dict | None = None) -> dict:
@@ -163,6 +165,19 @@ def run_proposal_nurture_sweep(self):
         async with async_session() as db:
             result = await run_nurture_check(db)
             await db.commit()
+            return result
+
+    return asyncio.run(_run())
+
+
+@shared_task(bind=True)
+def run_weekly_report(self):
+    """Generate and email weekly report (runs Monday 9:00)."""
+    from app.core.database import async_session
+
+    async def _run():
+        async with async_session() as db:
+            result = await generate_and_email_report(db)
             return result
 
     return asyncio.run(_run())
