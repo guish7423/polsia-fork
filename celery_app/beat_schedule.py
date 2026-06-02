@@ -81,4 +81,10 @@ beat_schedule = {
         "schedule": crontab(hour=3, minute=0),
         "options": {"queue": "maintenance"},
     },
+    # Daily at 10:00: proposal nurture — check for sent-but-unread proposals needing follow-up
+    "proposal-nurture-sweep": {
+        "task": "celery_app.tasks.agent_tasks.run_proposal_nurture_sweep",
+        "schedule": crontab(hour=10, minute=0),
+        "options": {"queue": "agents"},
+    },
 }

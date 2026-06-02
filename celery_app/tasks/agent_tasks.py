@@ -150,3 +150,19 @@ def run_sandbox_cleanup(self):
     from app.services.sandbox_service import cleanup_expired
     count = cleanup_expired(hours=72)
     return {"cleaned": count, "task": "sandbox_cleanup"}
+
+
+@shared_task(bind=True)
+def run_proposal_nurture_sweep(self):
+    """Nurture: scan sent-but-unread proposals and flag for follow-up."""
+    import asyncio
+    from app.core.database import async_session
+    from app.services.proposal_nurture_service import run_nurture_check
+
+    async def _run():
+        async with async_session() as db:
+            result = await run_nurture_check(db)
+            await db.commit()
+            return result
+
+    return asyncio.run(_run())
