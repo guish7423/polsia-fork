@@ -89,6 +89,7 @@ from app.api.v1.quick_quote import router as quick_quote_router
 from app.api.v1.payments import payment_router as payment_public_router
 from app.api.v1.deploy_execution import router as deploy_execution_router
 from app.api.v1.reports import router as reports_router
+from app.api.v1.interrupts import router as interrupts_router
 from app.api.v1.ws import router as ws_router
 
 app.include_router(dashboard_router, prefix="/api/v1")
@@ -108,4 +109,5 @@ app.include_router(quick_quote_router, prefix="/api/v1")
 app.include_router(deploy_execution_router, prefix="/api/v1")
 app.include_router(reports_router, prefix="/api/v1")
 app.include_router(payment_public_router, prefix="/api/v1")
+app.include_router(interrupts_router, prefix="/api/v1")
 app.include_router(ws_router)
