@@ -193,6 +193,42 @@ async def auto_generate_proposal(
     return proposal
 
 
+async def accept_proposal(db: AsyncSession, proposal_id: int) -> Proposal | None:
+    """Accept a proposal — mark as won, record won_at, update order status."""
+    proposal = await get_proposal(db, proposal_id)
+    if not proposal:
+        return None
+    now = datetime.now(timezone.utc)
+    proposal.status = "won"
+    proposal.won_at = now
+    # Update the associated order to in_progress
+    from app.services.order_scanner_service import update_order_status
+    if proposal.order_id:
+        await update_order_status(db, proposal.order_id, "in_progress")
+    await db.flush()
+    await db.refresh(proposal)
+    return proposal
+
+
+async def reject_proposal(
+    db: AsyncSession, proposal_id: int, reason: str | None = None
+) -> Proposal | None:
+    """Reject a proposal — mark as lost, record replied_at."""
+    proposal = await get_proposal(db, proposal_id)
+    if not proposal:
+        return None
+    now = datetime.now(timezone.utc)
+    proposal.status = "lost"
+    proposal.replied_at = now
+    if reason:
+        meta = proposal.proposal_metadata or {}
+        meta["rejection_reason"] = reason
+        proposal.proposal_metadata = meta
+    await db.flush()
+    await db.refresh(proposal)
+    return proposal
+
+
 async def track_proposal_view(
     db: AsyncSession, proposal_id: int
 ) -> Proposal | None:

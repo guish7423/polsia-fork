@@ -7,6 +7,7 @@ from app.core.database import async_session
 from app.models.external_order import ExternalOrder
 from app.services.order_scanner_service import get_order
 from app.services.proposal_service import (
+    accept_proposal,
     auto_generate_proposal,
     create_proposal,
     format_proposal,
@@ -16,6 +17,7 @@ from app.services.proposal_service import (
     get_proposals_for_order,
     get_proposals_summary,
     get_proposal,
+    reject_proposal,
     track_proposal_view,
     update_proposal_status,
 )
@@ -35,6 +37,39 @@ async def get_proposal_by_token_endpoint(view_token: str):
             raise HTTPException(404, "Proposal not found")
         order = await get_order(db, p.order_id) if p.order_id else None
         return format_public_proposal(p, order)
+
+
+@public_proposal_router.post("/proposals/by-token/{view_token}/accept")
+async def accept_proposal_public(view_token: str):
+    """Public endpoint — accept a proposal. No auth required."""
+    async with async_session() as db:
+        p = await get_proposal_by_token(db, view_token)
+        if not p:
+            raise HTTPException(404, "Proposal not found")
+        if p.status not in ("draft", "sent", "replied", "negotiating"):
+            raise HTTPException(400, f"Proposal is already {p.status}")
+        updated = await accept_proposal(db, p.id)
+        if not updated:
+            raise HTTPException(500, "Failed to accept proposal")
+        await db.commit()
+        return {"status": "accepted", "proposal_id": p.id, "order_id": p.order_id}
+
+
+@public_proposal_router.post("/proposals/by-token/{view_token}/reject")
+async def reject_proposal_public(view_token: str, data: dict = {}):
+    """Public endpoint — reject a proposal with optional reason. No auth required."""
+    reason = data.get("reason", "") if isinstance(data, dict) else ""
+    async with async_session() as db:
+        p = await get_proposal_by_token(db, view_token)
+        if not p:
+            raise HTTPException(404, "Proposal not found")
+        if p.status not in ("draft", "sent", "replied", "negotiating"):
+            raise HTTPException(400, f"Proposal is already {p.status}")
+        updated = await reject_proposal(db, p.id, reason)
+        if not updated:
+            raise HTTPException(500, "Failed to reject proposal")
+        await db.commit()
+        return {"status": "rejected", "proposal_id": p.id, "order_id": p.order_id}
 
 
 @public_proposal_router.post("/proposals/by-token/{view_token}/track-view")
