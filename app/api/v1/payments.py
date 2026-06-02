@@ -1,6 +1,7 @@
 """Payment API — Stripe Checkout integration.
 
-POST /orders/{id}/create-checkout  — Create Stripe session for a proposal
+POST /create-product-checkout     — Direct product purchase (pricing page "Buy Now")
+POST /orders/{id}/create-checkout — Create Stripe session for a proposal
 POST /stripe/webhook              — Stripe webhook handler (raw body)
 """
 
@@ -27,6 +28,38 @@ router = APIRouter(tags=["payments"])
 
 # Public router — no API key (needed for Stripe webhook + checkout redirects)
 payment_router = APIRouter(tags=["payments-public"])
+
+
+@payment_router.post("/create-product-checkout")
+async def create_product_checkout(data: dict):
+    """Direct product purchase from pricing page — no order/proposal needed.
+
+    Body:
+        product_key (str): e.g. 'crossdeploy-basic'
+        customer_email (str, optional)
+        success_url (str, optional)
+        cancel_url (str, optional)
+
+    Returns Stripe Checkout URL for redirect.
+    """
+    from app.services.payment_service import create_product_checkout as svc
+
+    product_key = data.get("product_key", "")
+    customer_email = data.get("customer_email", "")
+    base = settings.base_url.rstrip("/")
+    success_url = data.get("success_url", f"{base}/?payment=success")
+    cancel_url = data.get("cancel_url", f"{base}/?payment=cancelled")
+
+    result = svc(product_key, customer_email, success_url, cancel_url)
+    if not result:
+        raise HTTPException(502, "Failed to create checkout. Stripe may not be configured.")
+
+    return {
+        "checkout_url": result["url"],
+        "session_id": result["session_id"],
+        "amount_total": result["amount_total"] / 100,
+        "currency": result["currency"],
+    }
 
 
 @payment_router.post("/orders/{order_id}/create-checkout")
