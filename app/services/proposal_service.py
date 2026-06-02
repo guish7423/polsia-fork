@@ -193,6 +193,21 @@ async def auto_generate_proposal(
     return proposal
 
 
+async def track_proposal_view(
+    db: AsyncSession, proposal_id: int
+) -> Proposal | None:
+    """Increment view count and update viewed_at timestamp."""
+    proposal = await get_proposal(db, proposal_id)
+    if not proposal:
+        return None
+    now = datetime.now(timezone.utc)
+    proposal.viewed_at = now
+    proposal.viewed_count = (proposal.viewed_count or 0) + 1
+    await db.flush()
+    await db.refresh(proposal)
+    return proposal
+
+
 def format_proposal(p: Proposal) -> dict:
     return {
         "id": p.id,
@@ -204,6 +219,8 @@ def format_proposal(p: Proposal) -> dict:
         "summary": p.summary,
         "proposal_metadata": p.proposal_metadata,
         "view_token": p.view_token,
+        "viewed_at": p.viewed_at.isoformat() if p.viewed_at else None,
+        "viewed_count": p.viewed_count or 0,
         "sent_at": p.sent_at.isoformat() if p.sent_at else None,
         "replied_at": p.replied_at.isoformat() if p.replied_at else None,
         "won_at": p.won_at.isoformat() if p.won_at else None,
@@ -223,6 +240,8 @@ def format_public_proposal(p: Proposal, order=None) -> dict:
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "order_id": p.order_id,
         "view_token": p.view_token or "",
+        "viewed_at": p.viewed_at.isoformat() if p.viewed_at else None,
+        "viewed_count": p.viewed_count or 0,
     }
     if order and hasattr(order, "deliverables") and order.deliverables:
         result["deliverables"] = order.deliverables

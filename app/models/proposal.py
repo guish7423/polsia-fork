@@ -23,6 +23,8 @@ class Proposal(Base):
     content: Mapped[str | None] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(String(500))
     proposal_metadata: Mapped[dict | None] = mapped_column(JSON)
+    viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    viewed_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     won_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

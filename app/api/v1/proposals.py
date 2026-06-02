@@ -16,6 +16,7 @@ from app.services.proposal_service import (
     get_proposals_for_order,
     get_proposals_summary,
     get_proposal,
+    track_proposal_view,
     update_proposal_status,
 )
 
@@ -34,6 +35,20 @@ async def get_proposal_by_token_endpoint(view_token: str):
             raise HTTPException(404, "Proposal not found")
         order = await get_order(db, p.order_id) if p.order_id else None
         return format_public_proposal(p, order)
+
+
+@public_proposal_router.post("/proposals/by-token/{view_token}/track-view")
+async def track_view(view_token: str):
+    """Public endpoint — track a proposal view. No auth required."""
+    async with async_session() as db:
+        p = await get_proposal_by_token(db, view_token)
+        if not p:
+            raise HTTPException(404, "Proposal not found")
+        updated = await track_proposal_view(db, p.id)
+        if not updated:
+            raise HTTPException(500, "Failed to track view")
+        await db.commit()
+        return {"viewed_count": updated.viewed_count, "viewed_at": updated.viewed_at.isoformat() if updated.viewed_at else None}
 
 
 @router.get("/proposals")
