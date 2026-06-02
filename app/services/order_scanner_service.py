@@ -456,6 +456,45 @@ async def scan_platform(db: AsyncSession, platform: str) -> list[ExternalOrder]:
             saved = await _save_jobs(db, remotive_result, platform)
             new_orders.extend(saved)
 
+    # ── Platform integrations (credential-gated) ─────────────────────
+    if platform == "upwork":
+        # Try Upwork MCP when credentials configured
+        try:
+            from app.services.platform_integrations.upwork_mcp import (
+                is_available as upwork_available,
+                search_orders as upwork_search,
+            )
+            if upwork_available():
+                print("[scanner] Upwork MCP integration available — searching...")
+                upwork_jobs = await upwork_search()
+                if upwork_jobs:
+                    saved = await _save_jobs(db, upwork_jobs, "upwork")
+                    new_orders.extend(saved)
+                    print(f"[scanner] Upwork MCP: {len(saved)} new orders")
+        except ImportError:
+            pass  # module not yet created
+        except Exception as e:
+            print(f"[scanner] Upwork MCP error: {e}")
+
+    elif platform == "zhubajie":
+        # Try 猪八戒 Open API when credentials configured
+        try:
+            from app.services.platform_integrations.zhubajie_api import (
+                is_available as zbj_available,
+                search_orders as zbj_search,
+            )
+            if zbj_available():
+                print("[scanner] 猪八戒 API integration available — searching...")
+                zbj_jobs = await zbj_search()
+                if zbj_jobs:
+                    saved = await _save_jobs(db, zbj_jobs, "zhubajie")
+                    new_orders.extend(saved)
+                    print(f"[scanner] 猪八戒 API: {len(saved)} new orders")
+        except ImportError:
+            pass
+        except Exception as e:
+            print(f"[scanner] 猪八戒 API error: {e}")
+
     # Diversity pool — pick 2-3 random templates not used recently
     pool = DIVERSITY_POOLS.get(platform, [])
     used_recently = await db.execute(
