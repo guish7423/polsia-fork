@@ -4,11 +4,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.auth import verify_api_key
 from app.core.database import async_session
+from app.models.external_order import ExternalOrder
 from app.services.order_scanner_service import get_order
 from app.services.proposal_service import (
     auto_generate_proposal,
     create_proposal,
     format_proposal,
+    format_public_proposal,
+    get_proposal_by_token,
     get_proposals,
     get_proposals_for_order,
     get_proposals_summary,
@@ -17,6 +20,20 @@ from app.services.proposal_service import (
 )
 
 router = APIRouter(dependencies=[Depends(verify_api_key)])
+
+# Public router — no API key required
+public_proposal_router = APIRouter(tags=["proposals-public"])
+
+
+@public_proposal_router.get("/proposals/by-token/{view_token}")
+async def get_proposal_by_token_endpoint(view_token: str):
+    """Public endpoint — view a proposal by its shareable token. No auth required."""
+    async with async_session() as db:
+        p = await get_proposal_by_token(db, view_token)
+        if not p:
+            raise HTTPException(404, "Proposal not found")
+        order = await get_order(db, p.order_id) if p.order_id else None
+        return format_public_proposal(p, order)
 
 
 @router.get("/proposals")

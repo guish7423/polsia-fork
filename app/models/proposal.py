@@ -14,6 +14,9 @@ class Proposal(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     order_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(50), server_default="draft")
+    view_token: Mapped[str | None] = mapped_column(
+        String(32), unique=True, index=True, nullable=True
+    )
     # draft → sent → replied → negotiating → won/lost
     proposed_amount: Mapped[float | None] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(10), server_default="USD")

@@ -84,7 +84,8 @@ from app.api.v1.activity import router as activity_router
 from app.api.v1.leads import router as leads_router
 from app.api.v1.orders_external import router as orders_external_router
 from app.api.v1.sandbox import router as sandbox_router
-from app.api.v1.proposals import router as proposals_router
+from app.api.v1.proposals import router as proposals_router, public_proposal_router
+from app.api.v1.quick_quote import router as quick_quote_router
 from app.api.v1.ws import router as ws_router
 
 app.include_router(dashboard_router, prefix="/api/v1")
@@ -99,4 +100,6 @@ app.include_router(leads_router, prefix="/api/v1")
 app.include_router(orders_external_router, prefix="/api/v1")
 app.include_router(sandbox_router, prefix="/api/v1")
 app.include_router(proposals_router, prefix="/api/v1")
+app.include_router(public_proposal_router, prefix="/api/v1")
+app.include_router(quick_quote_router, prefix="/api/v1")
 app.include_router(ws_router)

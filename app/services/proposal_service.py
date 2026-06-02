@@ -1,6 +1,7 @@
 """Proposal service — AI-generated sales proposals for external orders."""
 
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -30,6 +31,7 @@ async def create_proposal(
         content=content,
         summary=summary,
         proposal_metadata=proposal_metadata or {},
+        view_token=uuid.uuid4().hex[:12],
     )
     db.add(proposal)
     await db.flush()
@@ -40,6 +42,13 @@ async def create_proposal(
 async def get_proposal(db: AsyncSession, proposal_id: int) -> Proposal | None:
     result = await db.execute(
         select(Proposal).where(Proposal.id == proposal_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_proposal_by_token(db: AsyncSession, view_token: str) -> Proposal | None:
+    result = await db.execute(
+        select(Proposal).where(Proposal.view_token == view_token)
     )
     return result.scalar_one_or_none()
 
@@ -194,9 +203,26 @@ def format_proposal(p: Proposal) -> dict:
         "content": p.content,
         "summary": p.summary,
         "proposal_metadata": p.proposal_metadata,
+        "view_token": p.view_token,
         "sent_at": p.sent_at.isoformat() if p.sent_at else None,
         "replied_at": p.replied_at.isoformat() if p.replied_at else None,
         "won_at": p.won_at.isoformat() if p.won_at else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "updated_at": p.updated_at.isoformat() if p.updated_at else None,
     }
+
+
+def format_public_proposal(p: Proposal, order=None) -> dict:
+    """Public-safe proposal representation — no internal fields exposed."""
+    result = {
+        "id": p.id,
+        "status": p.status,
+        "proposed_amount": p.proposed_amount,
+        "currency": p.currency,
+        "content": p.content,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+        "order_id": p.order_id,
+    }
+    if order and hasattr(order, "deliverables") and order.deliverables:
+        result["deliverables"] = order.deliverables
+    return result
