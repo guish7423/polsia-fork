@@ -335,6 +335,64 @@ async def fetch_remotejobs_api() -> list[dict]:
     return jobs
 
 
+# ── Remotive source (free API, no auth) ────────────────────────────────
+
+REMOTIVE_CATEGORIES = [
+    "devops",
+    "full-stack-programming",
+    "backend",
+    "cloud",
+    "software-dev",
+]
+
+
+async def fetch_remotive_jobs() -> list[dict]:
+    """Fetch remote tech jobs from Remotive API (free, no auth).
+    https://remotive.com/api/remote-jobs?category=devops"""
+    jobs: list[dict] = []
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            for cat in REMOTIVE_CATEGORIES:
+                url = f"https://remotive.com/api/remote-jobs?category={cat}&limit=15"
+                try:
+                    resp = await client.get(
+                        url,
+                        headers={
+                            "User-Agent": "CrossWave/1.0 (order scanner)",
+                            "Accept": "application/json",
+                        },
+                    )
+                    if resp.status_code != 200:
+                        continue
+                    data = resp.json()
+                    raw_jobs = data.get("jobs", []) if isinstance(data, dict) else []
+                    for item in raw_jobs:
+                        title = (item.get("title", "") or "").strip()
+                        if not title:
+                            continue
+                        desc = (item.get("description", "") or "")[:800]
+                        tags_raw = item.get("tags") or item.get("skills") or []
+                        tags = tags_raw if isinstance(tags_raw, list) else []
+                        if not _is_relevant(title, tags, desc):
+                            continue
+                        jobs.append({
+                            "title": title,
+                            "description": desc,
+                            "platform": "remotive",
+                            "tags": tags[:5],
+                            "salary_min": None,
+                            "salary_max": None,
+                            "source_url": item.get("url", ""),
+                        })
+                except Exception as e:
+                    print(f"[scanner] Remotive cat '{cat}' failed: {e}")
+                    continue
+    except Exception as e:
+        print(f"[scanner] Remotive source failed: {e}")
+    return jobs[:15]  # cap total
+
+
 # ── Multi-source scanning ──────────────────────────────────────────────
 
 
@@ -370,6 +428,7 @@ async def _save_jobs(db: AsyncSession, jobs: list[dict], platform_map: str) -> l
 async def scan_platform(db: AsyncSession, platform: str) -> list[ExternalOrder]:
     """Scan a platform for new orders.
     For upwork: real sources (RemoteOK + Career Nest + RemoteJobs.org).
+    For fiverr: curl_cffi browser-impersonated scraper.
     For others: diversity pools + static templates."""
     new_orders = []
 
@@ -386,6 +445,15 @@ async def scan_platform(db: AsyncSession, platform: str) -> list[ExternalOrder]:
                 print(f"[scanner] Source failed: {src_result}")
                 continue
             saved = await _save_jobs(db, src_result, platform)
+            new_orders.extend(saved)
+
+    elif platform == "fiverr":
+        # Real Remotive API (free, no auth)
+        remotive_result = await fetch_remotive_jobs()
+        if isinstance(remotive_result, BaseException):
+            print(f"[scanner] Remotive source failed: {remotive_result}")
+        else:
+            saved = await _save_jobs(db, remotive_result, platform)
             new_orders.extend(saved)
 
     # Diversity pool — pick 2-3 random templates not used recently
