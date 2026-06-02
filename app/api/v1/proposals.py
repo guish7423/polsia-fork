@@ -41,7 +41,13 @@ async def get_proposal_by_token_endpoint(view_token: str):
 
 @public_proposal_router.post("/proposals/by-token/{view_token}/accept")
 async def accept_proposal_public(view_token: str):
-    """Public endpoint — accept a proposal. No auth required."""
+    """Public endpoint — accept a proposal. No auth required.
+    Auto-triggers DeployAgent fulfillment pipeline."""
+    import json
+    from sqlalchemy import update, select
+    from app.models.external_order import ExternalOrder
+    from app.agents.deploy_agent import DeployAgent
+
     async with async_session() as db:
         p = await get_proposal_by_token(db, view_token)
         if not p:
@@ -51,8 +57,34 @@ async def accept_proposal_public(view_token: str):
         updated = await accept_proposal(db, p.id)
         if not updated:
             raise HTTPException(500, "Failed to accept proposal")
+
+        # Auto-trigger DeployAgent fulfillment
+        deploy_plan = None
+        if p.order_id:
+            result = await db.execute(
+                select(ExternalOrder).where(ExternalOrder.id == p.order_id)
+            )
+            order = result.scalar_one_or_none()
+            if order:
+                try:
+                    agent = DeployAgent()
+                    deploy_plan = await agent.plan_deployment(db, order)
+                    # Persist plan to provider_notes for portal
+                    await db.execute(
+                        update(ExternalOrder).where(ExternalOrder.id == order.id)
+                        .values(provider_notes=json.dumps(deploy_plan, ensure_ascii=False))
+                    )
+                except Exception as e:
+                    # Non-blocking — don't fail the accept if deploy fails
+                    deploy_plan = {"error": str(e), "plan_summary": "Deployment plan generation deferred"}
+
         await db.commit()
-        return {"status": "accepted", "proposal_id": p.id, "order_id": p.order_id}
+        return {
+            "status": "accepted",
+            "proposal_id": p.id,
+            "order_id": p.order_id,
+            "deployment_plan": deploy_plan,
+        }
 
 
 @public_proposal_router.post("/proposals/by-token/{view_token}/reject")
