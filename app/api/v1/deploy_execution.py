@@ -1,6 +1,9 @@
-"""Deploy Execution API — trigger, status, and logs for deployment execution."""
+"""Deploy Execution API — trigger, status, download, and logs for deployment execution."""
+
+import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from app.core.auth import verify_api_key
 from app.core.database import async_session
@@ -101,3 +104,32 @@ async def get_execution_status(order_id: int):
             status["db_deploy_dir"] = row[1]
 
     return status
+
+
+@router.get("/orders/external/{order_id}/download-deliverable")
+async def download_deliverable(order_id: int):
+    """Download the deployment deliverable archive for an order."""
+    archive_path = engine.get_archive_path(order_id)
+
+    if not os.path.exists(archive_path):
+        raise HTTPException(404, "Deliverable archive not found — execute deploy first")
+
+    # Get order title for filename
+    async with async_session() as db:
+        from sqlalchemy import select
+        result = await db.execute(
+            select(ExternalOrder.title).where(ExternalOrder.id == order_id)
+        )
+        row = result.first()
+        title_slug = (row[0] if row else f"order-{order_id}").lower().replace(" ", "-")[:40]
+
+    filename = f"crosswave-deliverable-{title_slug}-order{order_id}.tar.gz"
+
+    return FileResponse(
+        path=archive_path,
+        media_type="application/gzip",
+        filename=filename,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
