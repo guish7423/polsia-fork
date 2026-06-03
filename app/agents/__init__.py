@@ -21,4 +21,5 @@ from app.agents import (  # noqa: F401
     order_scanner,
     lead_nurturing,
     social_media,
+    supervisor,
 )

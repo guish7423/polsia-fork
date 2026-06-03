@@ -48,6 +48,24 @@ def _register_all() -> None:
     ))
 
     register_schema(AgentSchema(
+        agent_type="supervisor",
+        role="Supervisor Planner",
+        goal="Accept complex goals, decompose them into dependency-aware sub-tasks, "
+             "assign each sub-task to the best-suited agent, and monitor execution "
+             "to ensure plans complete on time.",
+        backstory="You are the strategic planner of CrossWave. While the CEO orchestrates "
+                  "daily operations, you focus on breaking down complex objectives into "
+                  "manageable, parallel work streams. You understand which agent excels "
+                  "at what and build dependency graphs automatically.",
+        tools=["goal_decomposition", "agent_assignment", "dependency_analysis", "plan_persistence"],
+        task_category="analysis",
+        tier=AgentTier.CORE,
+        max_tasks_per_run=20,
+        budget_cents=100,
+        timeout_seconds=600,
+    ))
+
+    register_schema(AgentSchema(
         agent_type="evolution",
         role="Evolution Officer",
         goal="Analyse historical agent performance and recommend improvements. "

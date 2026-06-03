@@ -1,67 +1,97 @@
-"""Simple in-memory rate limiter — token bucket per IP."""
+"""Redis-backed rate limiting middleware.
 
+Usage::
+
+    app.add_middleware(RateLimitMiddleware)
+"""
+
+import json
 import time
-from collections import defaultdict
 
-from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
-from app.config import settings
+from app.core.redis_client import get_redis
 
+# ─── Rate-limit presets ────────────────────────────────────────────────────────
+# Maps URL-path prefixes to ``(max_requests, window_seconds)`` tuples.
 
-class TokenBucket:
-    """Token bucket rate limiter — per-IP, per-minute."""
+ENDPOINT_LIMITS: dict[str, tuple[int, int]] = {
+    "/api/v1/agents/": (10, 60),  # trigger / agent-status endpoints
+}
 
-    def __init__(self, rate: int = 60):
-        self.rate = rate
-        self._buckets: dict[str, dict] = defaultdict(
-            lambda: {"tokens": rate, "last_refill": time.monotonic()}
-        )
+DEFAULT_LIMIT: tuple[int, int] = (60, 60)  # 60 requests / minute
 
-    def _refill(self, ip: str):
-        bucket = self._buckets[ip]
-        now = time.monotonic()
-        elapsed = now - bucket["last_refill"]
-        tokens_to_add = int(elapsed * (self.rate / 60.0))
-        if tokens_to_add > 0:
-            bucket["tokens"] = min(self.rate, bucket["tokens"] + tokens_to_add)
-            bucket["last_refill"] = now
-
-    def consume(self, ip: str) -> bool:
-        """Try to consume one token. Returns True if allowed."""
-        self._refill(ip)
-        bucket = self._buckets[ip]
-        if bucket["tokens"] > 0:
-            bucket["tokens"] -= 1
-            return True
-        return False
-
-    def remaining(self, ip: str) -> int:
-        self._refill(ip)
-        return self._buckets[ip]["tokens"]
+# Exempt paths (health check, docs)
+EXEMPT_PATHS: set[str] = {"/api/v1/health", "/docs", "/openapi.json", "/redoc"}
 
 
-# Global rate limiter instance
-_rate_limiter = TokenBucket(rate=settings.rate_limit_per_minute)
+def _resolve_limit(path: str) -> tuple[int, int]:
+    """Return the per-endpoint limit or the default."""
+    for prefix, limit in ENDPOINT_LIMITS.items():
+        if path.startswith(prefix):
+            return limit
+    return DEFAULT_LIMIT
 
 
-async def rate_limit_middleware(request: Request, call_next):
-    """FastAPI middleware that rate-limits API requests per IP."""
-    # Skip rate limiting for health checks and WebSocket
-    if request.url.path in ("/api/v1/health",) or request.url.path.startswith("/ws"):
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Enforce per-endpoint request-rate limits via Redis sorted sets.
+
+    Each request increments a ``ratelimit:<prefix>:<client_ip>`` sorted set
+    key that expires after the window.  When Redis is unreachable requests
+    are allowed through (fail-open).
+    """
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        path = request.url.path
+
+        # Bypass rate-limiting for exempt paths
+        if path in EXEMPT_PATHS:
+            return await call_next(request)
+
+        max_reqs, window = _resolve_limit(path)
+        client_ip: str = request.client.host if request.client else "unknown"
+
+        prefix: str | None = None
+        for p in ENDPOINT_LIMITS:
+            if path.startswith(p):
+                prefix = p
+                break
+
+        redis_key = f"ratelimit:{prefix or 'default'}:{client_ip}"
+
+        try:
+            redis = await get_redis()
+            now = time.time()
+            cutoff = now - window
+
+            # Remove stale entries
+            await redis.zremrangebyscore(redis_key, 0, cutoff)  # type: ignore[union-attr]
+            count: int = await redis.zcard(redis_key)  # type: ignore[union-attr]
+
+            if count >= max_reqs:
+                retry_after = int(window)
+                return Response(
+                    status_code=429,
+                    content=json.dumps(
+                        {
+                            "detail": "Rate limit exceeded. Please try again later.",
+                        }
+                    ),
+                    media_type="application/json",
+                    headers={
+                        "Retry-After": str(retry_after),
+                        "X-RateLimit-Limit": str(max_reqs),
+                        "X-RateLimit-Remaining": "0",
+                    },
+                )
+
+            # Record this request
+            await redis.zadd(redis_key, {str(now): now})  # type: ignore[union-attr]
+            await redis.expire(redis_key, window)  # type: ignore[union-attr]
+        except Exception:
+            # Fail-open when Redis is unavailable
+            pass
+
         return await call_next(request)
-
-    client_ip = request.client.host if request.client else "unknown"
-    if not _rate_limiter.consume(client_ip):
-        return JSONResponse(
-            status_code=429,
-            content={
-                "detail": "Rate limit exceeded. Try again later.",
-                "retry_after_seconds": 60,
-            },
-            headers={"Retry-After": "60"},
-        )
-
-    response = await call_next(request)
-    response.headers["X-RateLimit-Remaining"] = str(_rate_limiter.remaining(client_ip))
-    return response

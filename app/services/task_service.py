@@ -26,6 +26,7 @@ VALID_AGENT_TYPES = [
     "order_fulfiller",
     "order_scanner",
     "social_media",
+    "supervisor",
 ]
 
 
@@ -102,6 +103,33 @@ async def update_task_status(
         task.error_message = error_message
     await db.flush()
     return task
+
+
+async def create_tasks_batch(
+    db: AsyncSession, tasks: list[dict],
+) -> list[Task]:
+    """Batch-create tasks from a list of task dicts.
+
+    Each dict should contain: title (required), agent_type (defaults to
+    ``"orchestrator"``), description, priority (default 3), source,
+    metadata_json.
+    """
+    created = []
+    for task_data in tasks:
+        task = Task(
+            title=task_data.get("title", "Unnamed task"),
+            description=task_data.get("description"),
+            agent_type=task_data.get("agent_type", "orchestrator"),
+            priority=task_data.get("priority", 3),
+            status="pending",
+            source=task_data.get("source", "supervisor"),
+        )
+        db.add(task)
+        created.append(task)
+    await db.flush()
+    for task in created:
+        await db.refresh(task)
+    return created
 
 
 async def get_tasks_today(db: AsyncSession) -> int:
