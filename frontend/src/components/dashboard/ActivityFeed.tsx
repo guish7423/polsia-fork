@@ -1,22 +1,21 @@
 "use client";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
+import Link from "next/link";
 
 const LEVEL_STYLES: Record<string, string> = {
-  success: "text-green-400",
-  error: "text-red-400",
-  warning: "text-yellow-400",
   info: "text-blue-400",
+  warning: "text-yellow-400",
+  error: "text-red-400",
 };
 
 const LEVEL_DOT: Record<string, string> = {
-  success: "bg-green-400",
-  error: "bg-red-400",
-  warning: "bg-yellow-400",
   info: "bg-blue-400",
+  warning: "bg-yellow-400",
+  error: "bg-red-400",
 };
 
 export function ActivityFeed() {
-  const { events, connected } = useActivityFeed();
+  const { events, connected } = useActivityFeed(100);
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 h-full flex flex-col">
@@ -31,19 +30,32 @@ export function ActivityFeed() {
         {events.length === 0 && (
           <p className="text-gray-500 text-xs">No activity yet — agents will post here.</p>
         )}
-        {events.map((e) => (
-          <div key={e.id} className="flex gap-2 items-start">
+        {events.map((e, i) => (
+          <div key={i} className="flex gap-2 items-start">
             <span
               className={`mt-1.5 w-2 h-2 flex-shrink-0 rounded-full ${LEVEL_DOT[e.level] ?? "bg-gray-400"}`}
             />
-            <div>
+            <div className="min-w-0 flex-1">
               <span className={`font-medium ${LEVEL_STYLES[e.level] ?? "text-gray-300"}`}>
                 {e.agent_type}
               </span>
               <span className="text-gray-400 mx-1">·</span>
               <span className="text-gray-200">{e.summary}</span>
-              <div className="text-gray-500 text-xs">
-                {new Date(e.created_at).toLocaleTimeString()}
+              <div className="flex items-center gap-2 text-gray-500 text-[10px] mt-0.5">
+                {e.run_id && (
+                  <Link
+                    href={`/agents/runs?id=${e.run_id}`}
+                    className="text-indigo-400 hover:text-indigo-300"
+                  >
+                    run #{e.run_id}
+                  </Link>
+                )}
+                {e.metadata?.cost_usd != null && (
+                  <span className="text-amber-400">${e.metadata.cost_usd.toFixed(6)}</span>
+                )}
+                {e.metadata?.duration_secs != null && (
+                  <span>{e.metadata.duration_secs.toFixed(1)}s</span>
+                )}
               </div>
             </div>
           </div>

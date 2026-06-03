@@ -9,8 +9,8 @@ jest.mock("@/lib/api", () => ({
 
 const mockApiGet = api.get as jest.Mock;
 
-const mockStatuses = [
-  { agent_type: "finance", last_run_status: "completed", last_run_at: null, tasks_today: 1, tasks_total: 5 },
+const mockMonitorResponse = [
+  { agent_type: "finance", name: "Finance", description: "", status: "idle", last_run: null, today: { run_count: 1, avg_duration_secs: null, total_tokens: 100, total_cost_usd: 0.001 } },
 ];
 
 describe("useAgentStatus", () => {
@@ -27,23 +27,23 @@ describe("useAgentStatus", () => {
     mockApiGet.mockResolvedValue([]);
     const { result } = renderHook(() => useAgentStatus());
     expect(result.current.loading).toBe(true);
-    expect(result.current.statuses).toEqual([]);
+    expect(result.current.agents).toEqual([]);
   });
 
-  it("fetches statuses on mount", async () => {
-    mockApiGet.mockResolvedValue(mockStatuses);
+  it("fetches agents on mount", async () => {
+    mockApiGet.mockResolvedValue(mockMonitorResponse);
     const { result } = renderHook(() => useAgentStatus());
 
     // Flush pending promises
     await act(async () => { jest.advanceTimersByTime(0); });
 
     expect(result.current.loading).toBe(false);
-    expect(result.current.statuses).toEqual(mockStatuses);
+    expect(result.current.agents).toEqual(mockMonitorResponse);
     expect(result.current.error).toBeNull();
   });
 
   it("polls at the given interval", async () => {
-    mockApiGet.mockResolvedValue(mockStatuses);
+    mockApiGet.mockResolvedValue(mockMonitorResponse);
     renderHook(() => useAgentStatus(5000));
 
     // Flush initial fetch
@@ -70,7 +70,7 @@ describe("useAgentStatus", () => {
   });
 
   it("stops polling on unmount", async () => {
-    mockApiGet.mockResolvedValue(mockStatuses);
+    mockApiGet.mockResolvedValue(mockMonitorResponse);
     const { unmount } = renderHook(() => useAgentStatus(1000));
 
     // Flush initial fetch

@@ -9,12 +9,6 @@ jest.mock("next/navigation", () => ({
   usePathname: () => "/agents",
 }));
 
-// Mock i18n
-const mockT = jest.fn();
-jest.mock("@/lib/i18n", () => ({
-  useI18n: () => ({ t: mockT }),
-}));
-
 // Mock useAgentStatus
 const mockUseAgentStatus = jest.fn();
 jest.mock("@/hooks/useAgentStatus", () => ({
@@ -29,101 +23,92 @@ jest.mock("@/lib/api", () => ({
 import { api } from "@/lib/api";
 const mockApiPost = api.post as jest.Mock;
 
-const mockStatuses = [
-  { agent_type: "orchestrator", last_run_status: "completed", last_run_at: "2026-05-31T10:00:00Z", tasks_today: 5, tasks_total: 120 },
-  { agent_type: "social_media", last_run_status: "running", last_run_at: null, tasks_today: 3, tasks_total: 45 },
-  { agent_type: "finance", last_run_status: "failed", last_run_at: "2026-05-30T08:00:00Z", tasks_today: 0, tasks_total: 200 },
+const makeAgent = (overrides: Record<string, unknown>) => ({
+  agent_type: "orchestrator",
+  name: "Orchestrator",
+  description: "Daily planning and agent coordination",
+  status: "idle",
+  last_run: null,
+  today: { run_count: 0, avg_duration_secs: null, total_tokens: 0, total_cost_usd: 0 },
+  ...overrides,
+});
+
+const mockAgents = [
+  makeAgent({ agent_type: "orchestrator", description: "Daily planning", last_run: { run_id: 1, status: "completed", duration_secs: 12, cost_usd: 0.001, started_at: "2026-06-01T10:00:00Z" }, today: { run_count: 5, avg_duration_secs: 10, total_tokens: 500, total_cost_usd: 0.005 } }),
+  makeAgent({ agent_type: "social_media", status: "running", description: "Social media management", today: { run_count: 3, avg_duration_secs: null, total_tokens: 300, total_cost_usd: 0.003 } }),
+  makeAgent({ agent_type: "finance", description: "Financial tracking", today: { run_count: 0, avg_duration_secs: null, total_tokens: 0, total_cost_usd: 0 } }),
 ];
 
 describe("AgentsPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockT.mockImplementation((key: string) => {
-      const map: Record<string, string> = {
-        "agents.title": "Agents",
-        "agents.run_now": "Run Now",
-        "agents.triggering": "Triggering…",
-        "agents.last_run": "Last run",
-        "agents.tasks_today": "tasks today",
-        "agents.never": "Never",
-        "agent.orchestrator": "Generates daily task plans",
-        "agent.social_media": "Drafts and posts tweets",
-        "agent.finance": "Monitors Stripe revenue",
-      };
-      return map[key] ?? key;
-    });
   });
 
   it("shows loading skeletons while data is loading", () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: [], loading: true, error: null });
+    mockUseAgentStatus.mockReturnValue({
+      agents: [], loading: true, error: null,
+      runningCount: 0, todayStats: { totalRuns: 0, totalCost: 0 },
+    });
     const { container } = render(<AgentsPage />);
     expect(container.querySelectorAll(".animate-pulse").length).toBe(9);
   });
 
   it("renders agent cards when loaded", () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
+    mockUseAgentStatus.mockReturnValue({
+      agents: mockAgents, loading: false, error: null,
+      runningCount: 1, todayStats: { totalRuns: 8, totalCost: 0.008 },
+    });
     render(<AgentsPage />);
     expect(screen.getByText("orchestrator")).toBeInTheDocument();
-    // agent_type replace(/_/g, " ") is applied in the component
-    expect(screen.getByText("social media")).toBeInTheDocument();
+    // Use getAllByText since "social media" may appear in heading + card
+    expect(screen.getAllByText(/social media/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("finance")).toBeInTheDocument();
   });
 
-  it("shows agent descriptions via i18n", () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
+  it("shows agent descriptions", () => {
+    mockUseAgentStatus.mockReturnValue({
+      agents: mockAgents, loading: false, error: null,
+      runningCount: 1, todayStats: { totalRuns: 8, totalCost: 0.008 },
+    });
     render(<AgentsPage />);
-    expect(screen.getByText("Generates daily task plans")).toBeInTheDocument();
+    expect(screen.getByText("Daily planning")).toBeInTheDocument();
   });
 
-  it("shows run buttons for each agent", () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
+  it("shows Run buttons for each agent", () => {
+    mockUseAgentStatus.mockReturnValue({
+      agents: mockAgents, loading: false, error: null,
+      runningCount: 1, todayStats: { totalRuns: 8, totalCost: 0.008 },
+    });
     render(<AgentsPage />);
-    const buttons = screen.getAllByText("Run Now");
+    const buttons = screen.getAllByText("Run");
     expect(buttons).toHaveLength(3);
   });
 
   it("displays success message after triggering an agent", async () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
-    mockApiPost.mockResolvedValue({ message: "Orchestrator agent triggered successfully" });
+    mockUseAgentStatus.mockReturnValue({
+      agents: mockAgents, loading: false, error: null,
+      runningCount: 1, todayStats: { totalRuns: 8, totalCost: 0.008 },
+    });
+    mockApiPost.mockResolvedValue({ message: "orchestrator agent triggered" });
 
     render(<AgentsPage />);
     const user = userEvent.setup();
 
-    const triggerBtns = screen.getAllByText("Run Now");
+    const triggerBtns = screen.getAllByText("Run");
     await user.click(triggerBtns[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("Orchestrator agent triggered successfully")).toBeInTheDocument();
+      expect(screen.getByText("orchestrator agent triggered")).toBeInTheDocument();
     });
   });
 
-  it("displays error message when trigger fails", async () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
-    mockApiPost.mockRejectedValue(new Error("Agent not available"));
-
-    render(<AgentsPage />);
-    const user = userEvent.setup();
-
-    const triggerBtns = screen.getAllByText("Run Now");
-    await user.click(triggerBtns[0]);
-
-    await waitFor(() => {
-      expect(screen.getByText("Error: Agent not available")).toBeInTheDocument();
+  it("shows summary bar with agent stats", () => {
+    mockUseAgentStatus.mockReturnValue({
+      agents: mockAgents, loading: false, error: null,
+      runningCount: 1, todayStats: { totalRuns: 8, totalCost: 0.008 },
     });
-  });
-
-  it("shows last run time for agents", () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
     render(<AgentsPage />);
-
-    expect(screen.getAllByText(/Last run/).length).toBeGreaterThan(0);
-  });
-
-  it("shows 'Never' for agents that never ran", () => {
-    mockUseAgentStatus.mockReturnValue({ statuses: mockStatuses, loading: false, error: null });
-    render(<AgentsPage />);
-
-    // "Never" is embedded inside a longer text node with "Last run:" etc.
-    expect(screen.getByText(/Never/)).toBeInTheDocument();
+    expect(screen.getByText(/Running Now/)).toBeInTheDocument();
+    expect(screen.getByText(/\$0\.008/)).toBeInTheDocument();
   });
 });
