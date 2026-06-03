@@ -1,6 +1,6 @@
 """Daily report and dashboard summary service."""
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from app.models.report import DailyReport
 from app.models.task import Task
 from app.models.activity_log import ActivityLog
 from app.models.finance import RevenueSnapshot, ExpenseRecord
+from app.services.model_usage_service import get_usage_stats
 
 
 async def get_or_create_report(
@@ -97,6 +98,16 @@ async def compute_dashboard_summary(db: AsyncSession) -> dict:
         )
     ).scalar() or 0
 
+    # Model usage stats (last 24h)
+    try:
+        today_start = datetime.now(timezone.utc) - timedelta(days=1)
+        usage_stats = await get_usage_stats(db, since=today_start)
+    except Exception:
+        usage_stats = {
+            "total_calls": 0, "total_cost_usd": 0,
+            "total_input_tokens": 0, "total_output_tokens": 0,
+        }
+
     return {
         "tasks_today_total": total_tasks,
         "tasks_today_pending": pending_tasks,
@@ -108,4 +119,5 @@ async def compute_dashboard_summary(db: AsyncSession) -> dict:
         "mrr_cents": latest_revenue.mrr_cents if latest_revenue else 0,
         "arr_cents": latest_revenue.arr_cents if latest_revenue else 0,
         "active_subscribers": latest_revenue.active_subscribers if latest_revenue else 0,
+        "model_usage_24h": usage_stats,
     }

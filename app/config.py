@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     llm_model: str = "deepseek-chat"
     llm_mock_response: str = '{"result": "Mock LLM response for testing"}'
 
+    # ModelInstance (Phase 3) — optional usage tracking
+    model_usage_log_enabled: bool = False
+    """When ``True``, persist ModelCall usage records to the database."""
+
+    model_rate_limit_rpm: int = 60
+    """Default requests-per-minute limit per ModelInstance."""
+
+    model_rate_limit_tpm: int = 100_000
+    """Default tokens-per-minute limit per ModelInstance."""
+
     # ChromaDB
     chroma_db_path: str = "./chroma_db"
 

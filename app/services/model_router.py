@@ -1,78 +1,43 @@
 """Model routing gateway — directs agent calls to the best LLM per task type.
 
-Each `ModelProfile` maps to an LLM endpoint.  The router selects the best
-profile for a given task category based on capability rank and availability.
-If the primary model fails, the caller falls through the chain.
-
-Task categories
----------------
-- content_gen       : creative writing, blog posts, social copy
-- analysis          : data analysis, metrics, business logic
-- code              : code generation, debugging, deployment scripts
-- classification    : scoring, ranking, filtering, order evaluation
-- summarization     : briefings, reports, market intelligence
-- conversation      : customer support, lead nurturing, email outreach
-
-Agent → category mapping is defined in AGENT_CATEGORY.
+This module integrates the new :class:`app.core.model_instance.ModelManager`
+while preserving backward compatibility with the existing :class:`ModelProfile`
+based API.  New code should prefer :func:`select_instance` /
+:func:`fallback_instances` and the :class:`ModelManager` directly.
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any
 
-TaskCategory = Literal[
-    "content_gen", "analysis", "code", "classification", "summarization", "conversation"
-]
+from app.core.model_instance import (
+    CAPABILITY_RANK,
+    AGENT_CATEGORY,
+    ModelInstance,
+    ModelManager,
+    TaskCategory,
+    agent_category as new_agent_category,
+)
 
-CAPABILITY_RANK: dict[str, int] = {
-    "content_gen": 1,
-    "conversation": 2,
-    "summarization": 3,
-    "analysis": 4,
-    "classification": 5,
-    "code": 6,
-}
+# ── Legacy ModelProfile (backward compatible) ────────────────────────────────
 
-# ── Agent → category mapping ────────────────────────────────────────────────
-# Every registered agent type is assigned a task category.  The router uses
-# this to select the optimal model profile for each call.
-AGENT_CATEGORY: dict[str, TaskCategory] = {
-    "orchestrator": "analysis",
-    "social_media": "content_gen",
-    "competitor_research": "analysis",
-    "business_planning": "analysis",
-    "deployment": "code",
-    "finance": "analysis",
-    "ads_management": "analysis",
-    "email_outreach": "conversation",
-    "code_generation": "code",
-    "customer_support": "conversation",
-    "order_scanner": "classification",
-    "order_fulfiller": "analysis",
-    "lead_nurturing": "conversation",
-    "deploy_agent": "code",
-    "monitor": "analysis",
-    "evolution": "analysis",
-    "market_intel": "summarization",
-}
-
-
-# ── Model profiles ──────────────────────────────────────────────────────────
 
 @dataclass
 class ModelProfile:
-    """An LLM endpoint that can handle one or more task categories."""
+    """An LLM endpoint that can handle one or more task categories.
+
+    .. deprecated::
+       Prefer :class:`app.core.model_instance.ModelInstance`.
+    """
 
     name: str
     env_api_key: str
     base_url: str
     model: str
     capabilities: set[str] = field(default_factory=set)
-    """Task categories this model is optimised for."""
     priority: int = 10
-    """Lower = tried first when multiple profiles match."""
     requires_key: bool = True
 
     def api_key(self) -> str:
@@ -84,8 +49,6 @@ class ModelProfile:
             return True
         return bool(self.api_key())
 
-
-# ── Build profile list from available env vars ──────────────────────────────
 
 PROFILES: list[ModelProfile] = [
     ModelProfile(
@@ -132,12 +95,14 @@ PROFILES: list[ModelProfile] = [
 ]
 
 
-def select_model(task_category: TaskCategory) -> ModelProfile | None:
-    """Return the best *available* model profile for *task_category*.
+# ── Legacy selectors (backward compatible — delegate internally) ─────────────
 
-    Profiles are sorted by priority (lower first); the first available
-    profile whose capabilities include *task_category* wins.
-    Returns ``None`` only if no profile (including Mock) is configured.
+
+def select_model(task_category: str) -> ModelProfile | None:
+    """Legacy: return the best available profile.
+
+    .. deprecated::
+       Use :func:`select_instance` instead.
     """
     sorted_profiles = sorted(PROFILES, key=lambda p: p.priority)
     for profile in sorted_profiles:
@@ -149,10 +114,11 @@ def select_model(task_category: TaskCategory) -> ModelProfile | None:
     return None
 
 
-def fallback_chain(task_category: TaskCategory) -> list[ModelProfile]:
-    """Ordered list of available profiles for *task_category* (best first).
+def fallback_chain(task_category: str) -> list[ModelProfile]:
+    """Legacy: ordered list of available profiles.
 
-    The caller can iterate through this list on failure.
+    .. deprecated::
+       Use :func:`fallback_instances` instead.
     """
     sorted_profiles = sorted(PROFILES, key=lambda p: p.priority)
     return [
@@ -163,17 +129,20 @@ def fallback_chain(task_category: TaskCategory) -> list[ModelProfile]:
 
 def agent_category(agent_type: str) -> TaskCategory:
     """Return the task category for *agent_type*, defaulting to ``analysis``."""
-    return AGENT_CATEGORY.get(agent_type, "analysis")
+    return new_agent_category(agent_type)
 
-
-# ── Convenience: build headers / body for a profile ─────────────────────────
 
 def build_request_kwargs(
     profile: ModelProfile,
     system_prompt: str | None = None,
     json_mode: bool = True,
 ) -> dict:
-    """Return ``dict`` suitable for ``httpx.AsyncClient.post(**kwargs)``."""
+    """Legacy: return ``dict`` suitable for ``httpx.AsyncClient.post(**kwargs)``.
+
+    .. deprecated::
+       Use :meth:`ModelInstance.chat` instead — it handles headers, body
+       construction, rate limiting, and token tracking automatically.
+    """
     headers = {
         "Authorization": f"Bearer {profile.api_key()}",
         "Content-Type": "application/json",
@@ -193,3 +162,47 @@ def build_request_kwargs(
         "json": body,
         "timeout": 120,
     }
+
+
+# ── New API: ModelInstance-based selectors ───────────────────────────────────
+
+_manager: ModelManager | None = None
+
+
+def _get_manager() -> ModelManager:
+    """Lazy-init singleton manager.
+
+    Use :func:`set_manager` to inject a customised manager (e.g. in tests).
+    """
+    global _manager
+    if _manager is None:
+        _manager = ModelManager.get_default()
+    return _manager
+
+
+def set_manager(manager: ModelManager | None) -> None:
+    """Set the global manager (useful for testing or custom configuration).
+
+    Pass ``None`` to reset to the default singleton on the next call.
+    """
+    global _manager
+    _manager = manager
+
+
+def select_instance(task_category: str) -> ModelInstance | None:
+    """Return the best available :class:`ModelInstance` for *task_category*.
+
+    This is the new preferred routing method.  It delegates to the
+    :class:`ModelManager` singleton.
+    """
+    return _get_manager().select(task_category)
+
+
+def fallback_instances(task_category: str) -> list[ModelInstance]:
+    """Return all available instances matching *task_category* (best first)."""
+    return _get_manager().fallback_chain(task_category)
+
+
+def get_manager() -> ModelManager:
+    """Return the current :class:`ModelManager` singleton."""
+    return _get_manager()

@@ -16,6 +16,7 @@ from app.models.report import DailyReport
 from app.models.external_order import ExternalOrder
 from app.models.lead import Lead
 from app.models.proposal import Proposal
+from app.models.model_call import ModelCall
 
 __all__ = [
     "Base",
@@ -40,4 +41,5 @@ __all__ = [
     "Lead",
     "ExternalOrder",
     "Proposal",
+    "ModelCall",
 ]

@@ -1,6 +1,6 @@
-"""Agent API routes — status and trigger."""
+"""Agent API routes — monitor, runs, and trigger."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -9,33 +9,87 @@ from app.services.activity_service import log_activity
 
 router = APIRouter(tags=["agents"])
 
-AGENT_DESCRIPTIONS = {
-    "orchestrator": "Daily planning and agent coordination",
-    "business_planning": "Strategic planning and KPI refinement",
-    "competitor_research": "Competitive analysis and market research",
-    "social_media": "Social media content creation and publishing",
-    "email_outreach": "Customer prospecting and email marketing",
-    "customer_support": "Automated customer inquiry responses",
-    "ads_management": "Ad campaign optimization and budget allocation",
-    "code_generation": "Code writing for company product",
-    "finance": "Financial tracking and revenue reporting",
-    "deployment": "Deployment lifecycle management",
-}
+
+# ─── Monitor ──────────────────────────────────────────────────────────────────
+
+
+@router.get("/agents/monitor")
+async def agent_monitor(db: AsyncSession = Depends(get_db)):
+    """Real-time agent monitor: status, latest run, today's stats per agent."""
+    from app.services.agent_monitor_service import get_agent_monitor
+    return await get_agent_monitor(db)
+
+
+# ─── Agent Runs ───────────────────────────────────────────────────────────────
+
+
+@router.get("/agents/runs")
+async def list_agent_runs(
+    agent_type: str | None = Query(None, description="Filter by agent type"),
+    status: str | None = Query(None, description="Filter by run status"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+):
+    """List agent runs with optional filters and pagination."""
+    from app.services.agent_monitor_service import get_agent_runs
+    runs, total = await get_agent_runs(
+        db, agent_type=agent_type, status=status, limit=limit, offset=offset,
+    )
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "runs": [
+            {
+                "id": r.id,
+                "agent_type": r.agent_type,
+                "run_type": r.run_type,
+                "status": r.status,
+                "tokens_used": r.tokens_used,
+                "cost_usd": r.cost_usd,
+                "duration_secs": r.duration_secs,
+                "llm_call_count": r.llm_call_count,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+            }
+            for r in runs
+        ],
+    }
+
+
+@router.get("/agents/runs/{run_id}")
+async def get_agent_run_detail(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Detailed view of a single agent run with LLM call data."""
+    from app.services.agent_monitor_service import get_agent_run_detail
+    detail = await get_agent_run_detail(db, run_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Agent run not found")
+    return detail
+
+
+@router.get("/agents/runs/stats/summary")
+async def agent_run_stats(
+    days: int = Query(7, ge=1, le=90),
+    agent_type: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregated agent run statistics for the last N days."""
+    from app.services.agent_monitor_service import get_agent_run_stats
+    return await get_agent_run_stats(db, agent_type=agent_type, days=days)
+
+
+# ─── Legacy: Trigger ──────────────────────────────────────────────────────────
 
 
 @router.get("/agents")
-async def list_agents():
-    """List all agents with their current status."""
-    return [
-        {
-            "agent_type": at,
-            "name": at.replace("_", " ").title(),
-            "description": AGENT_DESCRIPTIONS.get(at, ""),
-            "status": "idle",
-            "last_run": None,
-        }
-        for at in VALID_AGENT_TYPES
-    ]
+async def list_agents(db: AsyncSession = Depends(get_db)):
+    """List all agents — delegates to /agents/monitor."""
+    from app.services.agent_monitor_service import get_agent_monitor
+    return await get_agent_monitor(db)
 
 
 @router.post("/agents/{agent_type}/trigger")

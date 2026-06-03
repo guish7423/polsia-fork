@@ -3,16 +3,18 @@
 import asyncio
 import json
 import os
-from typing import Any
+from typing import Any, AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.model_instance import StreamChunk
 from app.services.model_router import (
     TaskCategory,
     agent_category,
     build_request_kwargs,
     fallback_chain,
+    fallback_instances,
     select_model,
 )
 from app.services.sandbox_service import (
@@ -138,6 +140,7 @@ class BasePolsiaAgent:
         json_mode: bool = True,
         max_retries: int = 2,
         task_category: TaskCategory | None = None,
+        db_session=None,
     ) -> dict:
         """Call the best available LLM for this agent's task category.
 
@@ -157,11 +160,16 @@ class BasePolsiaAgent:
 
         import httpx
 
+        from app.config import settings as app_settings
+        from app.services.model_usage_service import record_model_call
+
         category = task_category or self.task_category or agent_category(self.agent_type)
         chain = fallback_chain(category)
 
         if not chain:
             return {"result": "fallback", "error": "No LLM profiles available", "_fallback": True}
+
+        last_error: Exception | None = None
 
         # Try each profile in priority order
         for profile in chain:
@@ -173,31 +181,142 @@ class BasePolsiaAgent:
                         {"role": "user", "content": prompt}
                     )
 
+                    import time as _time
+                    _start = _time.monotonic()
                     async with httpx.AsyncClient() as client:
                         resp = await client.post(**kwargs)  # type: ignore[arg-type]
                         resp.raise_for_status()
                         data = resp.json()
-                        content = data["choices"][0]["message"]["content"]
+                    _elapsed_ms = int((_time.monotonic() - _start) * 1000)
+
+                    content = data["choices"][0]["message"]["content"]
+
+                    # Estimate token usage from response
+                    usage = data.get("usage", {})
+                    _in = usage.get("prompt_tokens", len(prompt) // 4)
+                    _out = usage.get("completion_tokens", len(content) // 4)
+
+                    # Log usage when db_session is available and tracking is enabled
+                    if app_settings.model_usage_log_enabled and db_session is not None:
+                        from app.core.model_instance import estimate_cost
+                        _cost = estimate_cost(profile.model, _in, _out)
                         try:
-                            return json.loads(content)
-                        except json.JSONDecodeError:
-                            return {
-                                "result": content,
-                                "_parse_warning": "LLM returned non-JSON",
-                                "_model": profile.name,
-                            }
+                            await record_model_call(
+                                db_session,
+                                provider="openai",
+                                model=profile.model,
+                                input_tokens=_in,
+                                output_tokens=_out,
+                                cost_usd=_cost,
+                                duration_ms=_elapsed_ms,
+                                success=True,
+                                task_category=category,
+                            )
+                        except Exception:
+                            pass  # Usage logging should never break agent execution
+
+                    try:
+                        return json.loads(content)
+                    except json.JSONDecodeError:
+                        return {
+                            "result": content,
+                            "_parse_warning": "LLM returned non-JSON",
+                            "_model": profile.name,
+                        }
                 except (httpx.HTTPError, httpx.TimeoutException, KeyError) as exc:
                     last_error = exc
                     if attempt < max_retries:
                         await asyncio.sleep(2 ** attempt)
                     continue
 
-        # All profiles exhausted
+        # All profiles exhausted — log failure when applicable
+        if app_settings.model_usage_log_enabled and db_session is not None:
+            try:
+                await record_model_call(
+                    db_session,
+                    provider="unknown",
+                    model="",
+                    input_tokens=0,
+                    output_tokens=0,
+                    cost_usd=0.0,
+                    duration_ms=0,
+                    success=False,
+                    task_category=category,
+                    error=str(last_error) if last_error else "all profiles exhausted",
+                )
+            except Exception:
+                pass
+
         return {
             "result": "fallback",
             "error": "All models failed",
             "_fallback": True,
         }
+
+    async def call_llm_stream(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        json_mode: bool = False,
+        task_category: TaskCategory | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """Stream a response from the best available LLM for this agent.
+
+        Yields :class:`StreamChunk` deltas.  Uses the new
+        :class:`ModelInstance` abstraction internally.
+
+        When ``LLM_API_MOCK=true``, yields the full mock response as a
+        single chunk then a finish chunk.
+
+        Usage::
+
+            async for chunk in agent.call_llm_stream("Hello"):
+                print(chunk.content, end="")
+        """
+        if os.environ.get("LLM_API_MOCK", str(settings.llm_api_mock)).lower() in (
+            "true",
+            "1",
+        ):
+            mock = MOCK_RESPONSES.get(self.agent_type, MOCK_RESPONSE)
+            yield StreamChunk(content=json.dumps(mock, ensure_ascii=False))
+            yield StreamChunk(finish_reason="stop")
+            return
+
+        category = task_category or self.task_category or agent_category(self.agent_type)
+        instances = fallback_instances(category)
+
+        if not instances:
+            yield StreamChunk(content="", finish_reason="error")
+            return
+
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        for instance in instances:
+            try:
+                async for chunk in instance.chat_stream(
+                    messages=messages,
+                    json_mode=json_mode,
+                ):
+                    yield chunk
+                # Streaming succeeded — don't fall through
+                return
+            except NotImplementedError:
+                # Provider doesn't support streaming; fall through
+                continue
+            except Exception as exc:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(
+                    "Streaming failed for %s, trying next instance: %s",
+                    instance.name, exc,
+                )
+                continue
+
+        # All instances exhausted
+        yield StreamChunk(content="", finish_reason="error")
 
     async def run(self, db: AsyncSession, context: dict | None = None) -> dict:
         """Execute the agent's primary logic.

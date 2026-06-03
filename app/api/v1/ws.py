@@ -2,7 +2,7 @@
 
 import asyncio
 import json
-from typing import Set
+from typing import Any, Set
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -14,18 +14,31 @@ ACTIVITY_CHANNEL = "activity:events"
 active_connections: Set[WebSocket] = set()
 
 
-async def broadcast_activity(agent_type: str, action: str, summary: str, level: str = "info"):
+async def broadcast_activity(
+    agent_type: str,
+    action: str,
+    summary: str,
+    level: str = "info",
+    run_id: int | None = None,
+    metadata: dict[str, Any] | None = None,
+):
     """Send activity event to all connected WebSocket clients."""
-    message = json.dumps({
+    message: dict[str, Any] = {
         "agent_type": agent_type,
         "action": action,
         "summary": summary,
         "level": level,
-    })
+    }
+    if run_id is not None:
+        message["run_id"] = run_id
+    if metadata:
+        message["metadata"] = metadata
+
+    payload = json.dumps(message)
     dead: list[WebSocket] = []
     for ws in active_connections:
         try:
-            await ws.send_text(message)
+            await ws.send_text(payload)
         except Exception:
             dead.append(ws)
     for ws in dead:
@@ -49,6 +62,8 @@ async def listen_redis():
                             data.get("action", ""),
                             data.get("summary", ""),
                             data.get("level", "info"),
+                            data.get("run_id"),
+                            data.get("metadata"),
                         )
                     except json.JSONDecodeError:
                         pass
