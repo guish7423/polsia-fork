@@ -9,7 +9,7 @@ Polsia is a self-hosted, autonomous AI platform that runs a company's operations
 **Unit tests** (no Docker, no Claude credentials needed):
 ```bash
 cd backend
-CLAUDE_CLI_MOCK=true python -m pytest tests/unit/ -v
+LLM_API_MOCK=true python3 -m pytest tests/unit/ -v
 ```
 
 **With coverage:**
@@ -43,7 +43,7 @@ make test        # unit + integration (via Docker)
 
 ## Architecture in one paragraph
 
-FastAPI (async, Python 3.11) serves the REST API and WebSocket. Celery workers pull tasks from Redis and run agents. Each agent inherits `BasePolsiaAgent` and calls `claude -p "..." --output-format json` as a subprocess. Results are written to PostgreSQL (SQLAlchemy async ORM, 16 tables) and semantic insights are dual-written to ChromaDB. Redis pub/sub broadcasts activity events to the WebSocket, which the Next.js dashboard consumes in real-time. `CLAUDE_CLI_MOCK=true` makes all agents return a stub response — used in all tests and CI.
+FastAPI (async, Python 3.12) serves the REST API and WebSocket. Celery workers pull tasks from Redis and run agents. Each agent inherits `BasePolsiaAgent` and calls configurable LLM APIs (DeepSeek, OpenAI, or any OpenAI-compatible endpoint) via httpx async client — with ModelInstance provider abstraction, rate limiting, fallback chains, and usage tracking. Results are written to PostgreSQL (SQLAlchemy async ORM, 35+ tables) and semantic insights are dual-written to ChromaDB for RAG. Redis pub/sub broadcasts activity events to the WebSocket, which the Next.js dashboard consumes in real-time. `LLM_API_MOCK=true` makes all agents return a stub response — used in all tests and CI.
 
 ## Critical env vars for development
 
@@ -99,7 +99,7 @@ Always add the new model to `models/__init__.py` before generating the migration
 
 ## What `LLM_API_MOCK` does
 
-In `base_agent.py`, if `os.getenv("LLM_API_MOCK", settings.llm_api_mock)` is truthy, `call_llm()` returns the value of `LLM_MOCK_RESPONSE` (defaults to `{"result": "Mock LLM response"}`) instead of making real HTTP calls. This is set via the `SANDBOX_MODE=true` env var or directly via `LLM_API_MOCK=true`.
+In `app/agents/base.py`, if `os.getenv("LLM_API_MOCK", str(settings.llm_api_mock))` is truthy, `call_llm()` returns a per-agent mock JSON response instead of making real HTTP calls. The autouse fixture in `tests/conftest.py` sets `LLM_API_MOCK=true` — no real API calls ever in tests.
 
 ## CI environment
 

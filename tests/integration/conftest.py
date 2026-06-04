@@ -9,8 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 
 @pytest.fixture(autouse=True)
 def mock_claude_cli(monkeypatch):
-    monkeypatch.setenv("CLAUDE_CLI_MOCK", "true")
-    monkeypatch.setenv("CLAUDE_CLI_MOCK_RESPONSE", json.dumps({"result": "integration mock"}))
+    monkeypatch.setenv("LLM_API_MOCK", "true")
+    monkeypatch.setenv("LLM_MOCK_RESPONSE", json.dumps({"result": "integration mock"}))
 
 
 @pytest.fixture(scope="session")
