@@ -232,6 +232,54 @@ export type MarketplaceAgent = {
   version: string;
 };
 
+// ─── Alerts / Dashboard Health ──────────────────────────────────────────────
+
+export type AlertSeverity = "critical" | "warning" | "info";
+
+export type ActiveAlert = {
+  id: number;
+  tenant_id: number;
+  alert_type: string;
+  severity: AlertSeverity;
+  message: string;
+  source: string;
+  status: string;
+  metadata_json: string | null;
+  created_at: string | null;
+  resolved_at: string | null;
+};
+
+export type ActiveAlertsResponse = {
+  alerts: ActiveAlert[];
+  total: number;
+};
+
+export type CheckStatus = "healthy" | "degraded" | "warning";
+
+export type DashboardHealthCheck = {
+  status: CheckStatus;
+  running?: number;
+  errored?: number;
+  total?: number;
+  pending?: number;
+  failed_24h?: number;
+  avg_usage_pct?: number;
+  exceeded?: string[];
+  cost_24h_usd?: number;
+  budget_pct?: number;
+};
+
+export type DashboardHealth = {
+  overall: "healthy" | "degraded" | "down";
+  checks: {
+    agents: DashboardHealthCheck;
+    tasks: DashboardHealthCheck;
+    quota: DashboardHealthCheck;
+    cost: DashboardHealthCheck & { cost_24h_usd: number; budget_pct: number };
+    last_updated: string;
+  };
+};
+
 // ─── Usage ──────────────────────────────────────────────────────────────────
 
 export type UsageStats = {
@@ -328,6 +376,49 @@ export type FinanceSummary = {
   stripe_balance_cents: number;
   last_snapshot_date: string | null;
 };
+
+// ─── Notifications ─────────────────────────────────────────────────────────
+
+export type NotificationType = "alert" | "billing" | "system" | "agent";
+
+export type NotificationItem = {
+  id: number;
+  tenant_id: number;
+  notification_type: NotificationType;
+  title: string;
+  body: string | null;
+  read: boolean;
+  read_at: string | null;
+  link: string | null;
+  created_at: string;
+};
+
+export type NotificationListResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  items: NotificationItem[];
+};
+
+export type UnreadCountResponse = {
+  count: number;
+};
+
+export async function fetchNotifications(limit = 10, offset = 0): Promise<NotificationListResponse> {
+  return api.get<NotificationListResponse>(`/notifications?limit=${limit}&offset=${offset}`);
+}
+
+export async function fetchUnreadCount(): Promise<UnreadCountResponse> {
+  return api.get<UnreadCountResponse>("/notifications/unread-count");
+}
+
+export async function markNotificationRead(id: number): Promise<void> {
+  await api.post(`/notifications/${id}/read`);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await api.post("/notifications/read-all");
+}
 
 export type MeInfo = {
   email: string;

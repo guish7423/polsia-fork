@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { GlobalSearch } from "./GlobalSearch";
+import { NotificationBell } from "./NotificationBell";
 
 type NavItem = { href: string; labelKey: string; icon: typeof BarChart2 };
 
@@ -65,9 +66,12 @@ export function Sidebar() {
   return (
     <>
     <aside className="w-56 min-h-screen bg-gray-900 text-white flex flex-col">
-      <div className="p-4 border-b border-gray-700">
-        <h1 className="text-lg font-bold text-indigo-400">Polsia</h1>
-        <p className="text-xs text-gray-400">{t("brand.subtitle")}</p>
+      <div className="p-4 border-b border-gray-700 flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-indigo-400">Polsia</h1>
+          <p className="text-xs text-gray-400">{t("brand.subtitle")}</p>
+        </div>
+        <NotificationBell />
       </div>
       <nav className="flex-1 p-3 space-y-4">
         {NAV_GROUPS.map((group) => (

@@ -1,6 +1,8 @@
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { AgentStatusGrid } from "@/components/dashboard/AgentStatusGrid";
+import { GlobalAlertBanner } from "@/components/dashboard/GlobalAlertBanner";
 import { MetricsCard } from "@/components/dashboard/MetricsCard";
+import { SystemHealthCard } from "@/components/dashboard/SystemHealthCard";
 import { api, type DashboardSummary } from "@/lib/api";
 
 async function getSummary(): Promise<DashboardSummary | null> {
@@ -18,7 +20,16 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+      {/* Global Alert Banner — full width, top of page */}
+      <GlobalAlertBanner />
+
+      {/* Title row with HealthCard */}
+      <div className="flex items-start justify-between gap-6">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <div className="w-72 flex-shrink-0">
+          <SystemHealthCard />
+        </div>
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
