@@ -17,7 +17,8 @@ _consecutive_failures: dict[str, int] = {}
 
 
 def dispatch_agent(agent_type: str, context: dict | None = None,
-                   task_id: int | None = None, tenant_id: int = 0) -> dict:
+                   task_id: int | None = None, tenant_id: int = 0,
+                   function_calling: bool = False) -> dict:
     """Dispatch an agent through the scheduler, checking load first.
 
     When ``settings.scheduler_enabled`` is True, calls the scheduler to
@@ -27,13 +28,22 @@ def dispatch_agent(agent_type: str, context: dict | None = None,
     For now, this is a thin wrapper that calls ``run_agent`` directly;
     future iterations will use ``apply_async(queue=...)`` for true
     queue-aware routing.
+
+    Args:
+        agent_type: Registered agent type.
+        context: Agent input context dict.
+        task_id: Optional task ID for AgentRun tracking.
+        tenant_id: Tenant scope (default 0).
+        function_calling: When True, agents should use
+            ``call_llm_with_tools()`` instead of ``call_llm()``.
     """
     from app.config import settings
 
     if settings.scheduler_enabled and tenant_id > 0:
         _try_record_schedule(agent_type, tenant_id)
 
-    return run_agent(agent_type, context=context, task_id=task_id)
+    return run_agent(agent_type, context=context, task_id=task_id,
+                     function_calling=function_calling)
 
 
 def _try_record_schedule(agent_type: str, tenant_id: int) -> None:
@@ -92,7 +102,9 @@ def _record_spans(spans: list[dict]) -> dict | None:
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def run_agent(self, agent_type: str, context: dict | None = None, task_id: int | None = None) -> dict:
+def run_agent(self, agent_type: str, context: dict | None = None,
+              task_id: int | None = None,
+              function_calling: bool = False) -> dict:
     """Run any registered agent by type — with AgentRun lifecycle tracking.
 
     Creates an AgentRun record at start, updates it on completion/error,
@@ -100,13 +112,22 @@ def run_agent(self, agent_type: str, context: dict | None = None, task_id: int |
 
     When ``settings.durable_execution_enabled`` is True, uses checkpoint-based
     durable execution that persists step results and survives worker crashes.
+
+    Args:
+        agent_type: Registered agent type.
+        context: Agent input context dict.
+        task_id: Optional task ID for AgentRun tracking.
+        function_calling: When True, set ``_function_calling_enabled`` on
+            the agent instance so it can use ``call_llm_with_tools()``
+            instead of ``call_llm()`` during execution.
     """
     from app.config import settings
 
     # ── Dispatch: durable execution path ──────────────────────────────────
     if settings.durable_execution_enabled:
         return asyncio.run(
-            _run_agent_with_checkpoint(self, agent_type, context, task_id)
+            _run_agent_with_checkpoint(self, agent_type, context, task_id,
+                                       function_calling)
         )
 
     # ── Standard path ─────────────────────────────────────────────────────
@@ -172,6 +193,7 @@ def run_agent(self, agent_type: str, context: dict | None = None, task_id: int |
 
         async with async_session() as db:
             agent = agent_class()
+            agent._function_calling_enabled = function_calling
 
             # Resolve tenant_id from task if available
             _tenant_id: int = 0
@@ -375,11 +397,16 @@ def run_agent(self, agent_type: str, context: dict | None = None, task_id: int |
 
 async def _run_agent_with_checkpoint(
     self, agent_type: str, context: dict | None, task_id: int | None,
+    function_calling: bool = False,
 ) -> dict:
     """Execute agent with checkpoint-based durable execution.
 
     Each step is checkpointed: on retry after crash, completed steps are
     skipped (results restored from DB).
+
+    Args:
+        function_calling: When True, set ``_function_calling_enabled`` on
+            the agent instance so it can use ``call_llm_with_tools()``.
     """
     from app.agents import agent_map
     from app.core.database import async_session
@@ -436,6 +463,7 @@ async def _run_agent_with_checkpoint(
         try:
             # 3️⃣ Execute steps with checkpoint
             agent = agent_class()
+            agent._function_calling_enabled = function_calling
 
             ctx = await cp.run("prepare", _prepare_context, context)
             result = await cp.run("execute", agent.run, db, ctx)

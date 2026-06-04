@@ -133,6 +133,11 @@ class BasePolsiaAgent:
     """Explicit task category for model routing.  ``None`` → inferred from
     :attr:`agent_type` via ``AGENT_CATEGORY`` mapping."""
 
+    _function_calling_enabled: bool = False
+    """Set by ``run_agent()`` when ``function_calling=True``.  Agent
+    subclasses can check this flag in their ``run()`` method and choose
+    ``call_llm_with_tools()`` over ``call_llm()`` accordingly."""
+
     _gen_config_overrides: dict | None = None
     """Cached generation config overrides, populated lazily by
     :meth:`_load_gen_config_overrides` and read by :meth:`_get_gen_config_overrides`."""
@@ -398,6 +403,43 @@ class BasePolsiaAgent:
             "error": "All models failed",
             "_fallback": True,
         }
+
+    async def call_llm_with_tools(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tool_rounds: int = 5,
+        task_category: TaskCategory | None = None,
+        db_session=None,
+        tenant_id: int | None = None,
+    ) -> dict:
+        """Multi-round LLM call with tool execution via :class:`ModelInstance.chat()`.
+
+        Delegates to :func:`app.agents.tool_agent.call_llm_with_tools`.
+
+        Args:
+            prompt: The user query / instruction.
+            system_prompt: Optional system-level instruction.
+            max_tool_rounds: Maximum tool-calling rounds (default 5).
+            task_category: Override the agent's default task category.
+            db_session: Database session for tool lookups.
+            tenant_id: Tenant scope.  ``None`` → no tools loaded.
+
+        Returns:
+            Dict with ``"result"`` key, or parsed JSON on the final round.
+        """
+        from app.agents.tool_agent import call_llm_with_tools as _call
+
+        return await _call(
+            agent_type=self.agent_type,
+            task_category=self.task_category,
+            prompt=prompt,
+            system_prompt=system_prompt,
+            max_tool_rounds=max_tool_rounds,
+            task_category_override=task_category,
+            db_session=db_session,
+            tenant_id=tenant_id,
+        )
 
     async def call_llm_stream(
         self,
