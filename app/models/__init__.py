@@ -13,10 +13,14 @@ from app.models.competitor import Competitor
 from app.models.stripe import StripeEvent
 from app.models.finance import RevenueSnapshot, ExpenseRecord
 from app.models.report import DailyReport
-from app.models.external_order import ExternalOrder
-from app.models.lead import Lead
-from app.models.proposal import Proposal
-from app.models.model_call import ModelCall
+from app.models.tenant import Tenant
+from app.models.subscription import Subscription
+from app.models.mcp_tool import MCPTool
+from app.models.mcp_tool_call import MCPToolCall
+from app.models.agent_message import AgentMessage
+from app.models.plugin import Plugin
+from app.models.sandbox_execution import SandboxExecution
+from app.models.audit_entry import AuditEntry
 
 __all__ = [
     "Base",
@@ -38,8 +42,12 @@ __all__ = [
     "RevenueSnapshot",
     "ExpenseRecord",
     "DailyReport",
-    "Lead",
-    "ExternalOrder",
-    "Proposal",
-    "ModelCall",
+    "Tenant",
+    "Subscription",
+    "MCPTool",
+    "MCPToolCall",
+    "AgentMessage",
+    "Plugin",
+    "SandboxExecution",
+    "AuditEntry",
 ]

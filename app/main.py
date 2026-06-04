@@ -78,7 +78,6 @@ from app.api.v1.agents import router as agents_router
 from app.api.v1.tasks import router as tasks_router
 from app.api.v1.finance import router as finance_router
 from app.api.v1.config import router as config_router
-from app.api.v1.memory import router as memory_router
 from app.api.v1.social import router as social_router
 from app.api.v1.activity import router as activity_router
 from app.api.v1.leads import router as leads_router
@@ -93,18 +92,31 @@ from app.api.v1.interrupts import router as interrupts_router
 from app.api.v1.ws import router as ws_router
 from app.api.v1.usage import router as usage_router
 from app.api.v1.supervisor import router as supervisor_router
+from app.api.v1.quota import router as quota_router
+from app.api.v1.mcp import router as mcp_router
+from app.api.v1.memory import router as memory_router
+from app.api.v1.mesh import router as mesh_router
+from app.api.v1.plugins import router as plugins_router
+from app.api.v1.scheduler import router as scheduler_router
+from app.api.v1.audit import router as audit_router
 from app.api.v1.errors import register_error_handlers
 
 # Register structured error handlers (after all routers are registered)
 register_error_handlers(app)
 
-# Register middleware (order matters: RequestID → Logging → CORS → RateLimit)
+# Register middleware (order: RequestID → Logging → RateLimit → TenantContext → Quota)
+# RateLimit is inner to TenantContext so per-tenant RPM is available.
+# Quota is outermost among enforcement middleware (last registered = first executed).
 from app.core.logging import RequestIDMiddleware, RequestLoggingMiddleware
+from app.core.quota_middleware import QuotaEnforcementMiddleware
 from app.core.ratelimit import RateLimitMiddleware
+from app.core.tenant_middleware import TenantContextMiddleware
 
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
+app.add_middleware(TenantContextMiddleware)
+app.add_middleware(QuotaEnforcementMiddleware)
 
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(agents_router, prefix="/api/v1")
@@ -127,3 +139,9 @@ app.include_router(interrupts_router, prefix="/api/v1")
 app.include_router(ws_router)
 app.include_router(usage_router, prefix="/api/v1")
 app.include_router(supervisor_router, prefix="/api/v1")
+app.include_router(quota_router)
+app.include_router(mcp_router, prefix="/api/v1")
+app.include_router(mesh_router, prefix="/api/v1")
+app.include_router(plugins_router, prefix="/api/v1")
+app.include_router(scheduler_router)
+app.include_router(audit_router, prefix="/api/v1")
