@@ -1,8 +1,13 @@
-"""Agent API routes — monitor, runs, and trigger."""
+"""Agent API routes — monitor, runs, trigger, and SSE streaming."""
+
+import asyncio
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.database import get_db
 from app.services.task_service import VALID_AGENT_TYPES
 from app.services.activity_service import log_activity
@@ -135,3 +140,50 @@ async def trigger_agent(
     celery_run_agent.delay(agent_type)
 
     return {"message": f"{agent_type} agent triggered", "verdict": "allow"}
+
+
+# ─── Agent SSE Stream ─────────────────────────────────────────────────────────
+
+
+@router.get("/agents/{agent_type}/stream")
+async def stream_agent_steps(agent_type: str):
+    """SSE endpoint: streams agent step events in real-time.
+
+    Returns a ``text/event-stream`` response.  The client receives all
+    buffered steps first, then live events as they are published.
+    Disconnected clients are cleaned up automatically.
+
+    SSE format::
+
+        event: step
+        data: {"step":"thinking","content":"Analyzing...","ts":"..."}
+    """
+    if not settings.agent_streaming_enabled:
+        raise HTTPException(
+            status_code=404,
+            detail="Agent streaming is disabled",
+        )
+
+    from app.core.agent_stream import AgentStreamManager
+
+    manager = AgentStreamManager.get_instance()
+
+    async def _event_stream():
+        try:
+            async for step in manager.stream_steps(agent_type):
+                yield f"event: step\ndata: {json.dumps(step)}\n\n"
+        except asyncio.CancelledError:
+            pass  # client disconnected — clean exit
+
+    return StreamingResponse(
+        _event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+

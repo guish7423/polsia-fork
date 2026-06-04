@@ -1,4 +1,41 @@
 {
-  "next_id": 1,
-  "interrupts": []
+  "next_id": 4,
+  "interrupts": [
+    {
+      "id": 1,
+      "agent_type": "test-agent",
+      "task_id": 1,
+      "reason": "test",
+      "context": {},
+      "status": "pending",
+      "created_at": 1780564062.4434247,
+      "updated_at": null,
+      "decision": null,
+      "decision_note": null
+    },
+    {
+      "id": 2,
+      "agent_type": "test-agent",
+      "task_id": 2,
+      "reason": "test",
+      "context": {},
+      "status": "approved",
+      "created_at": 1780564062.4784749,
+      "updated_at": 1780564062.4823968,
+      "decision": "approved",
+      "decision_note": null
+    },
+    {
+      "id": 3,
+      "agent_type": "test-agent",
+      "task_id": 3,
+      "reason": "test",
+      "context": {},
+      "status": "rejected",
+      "created_at": 1780564062.501913,
+      "updated_at": 1780564062.548241,
+      "decision": "rejected",
+      "decision_note": "Not needed"
+    }
+  ]
 }

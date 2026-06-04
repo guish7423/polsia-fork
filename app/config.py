@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     """Master switch for generation config auto-tuning. When ``False``,
     ``ConfigTunerService.auto_tune`` returns ``None`` without applying changes."""
 
+    # Agent streaming (SSE)
+    agent_streaming_enabled: bool = True
+    """Master switch for agent step streaming via SSE (Task 05)."""
+
     sandbox_enabled: bool = False
     """When ``True``, route agent execution through Docker sandbox containers."""
 

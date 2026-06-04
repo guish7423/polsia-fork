@@ -172,6 +172,27 @@ class BasePolsiaAgent:
             self._gen_config_overrides = {}
             return {}
 
+    # ── Agent Step Streaming (SSE) ────────────────────────────────────────
+
+    def publish_step(self, step_type: str, content: str, timestamp: str | None = None) -> None:
+        """Publish a streaming step event for this agent (non-blocking, fail-open).
+
+        Args:
+            step_type: Short label — ``"thinking"``, ``"tool_call"``,
+                ``"llm_start"``, ``"llm_end"``, etc.
+            content: Human-readable description.
+            timestamp: ISO-8601 string; ``None`` → current time.
+        """
+        if not settings.agent_streaming_enabled:
+            return
+        try:
+            from app.core.agent_stream import AgentStreamManager
+            AgentStreamManager.get_instance().publish_step(
+                self.agent_type, step_type, content, timestamp,
+            )
+        except Exception:
+            pass  # Streaming must never break agent execution
+
     async def call_llm(
         self,
         prompt: str,
@@ -195,6 +216,7 @@ class BasePolsiaAgent:
             "1",
         ):
             mock = MOCK_RESPONSES.get(self.agent_type, MOCK_RESPONSE)
+            self.publish_step("llm_end", "Mock LLM response returned")
             return dict(mock)
 
         import httpx
@@ -233,6 +255,7 @@ class BasePolsiaAgent:
                             if "top_p" in overrides:
                                 kwargs["json"]["top_p"] = overrides["top_p"]
 
+                    self.publish_step("llm_start", f"Calling {profile.model}...")
                     import time as _time
                     _start = _time.monotonic()
                     async with httpx.AsyncClient() as client:
@@ -240,6 +263,7 @@ class BasePolsiaAgent:
                         resp.raise_for_status()
                         data = resp.json()
                     _elapsed_ms = int((_time.monotonic() - _start) * 1000)
+                    self.publish_step("llm_end", f"LLM responded in {_elapsed_ms}ms")
 
                     content = data["choices"][0]["message"]["content"]
 

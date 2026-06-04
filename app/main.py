@@ -98,6 +98,8 @@ from app.api.v1.memory import router as memory_router
 from app.api.v1.mesh import router as mesh_router
 from app.api.v1.plugins import router as plugins_router
 from app.api.v1.scheduler import router as scheduler_router
+from app.api.v1.alerts import router as alerts_router
+from app.api.v1.search import router as search_router
 from app.api.v1.errors import register_error_handlers
 
 # Register structured error handlers (after all routers are registered)
@@ -143,3 +145,5 @@ app.include_router(mcp_router, prefix="/api/v1")
 app.include_router(mesh_router, prefix="/api/v1")
 app.include_router(plugins_router, prefix="/api/v1")
 app.include_router(scheduler_router)
+app.include_router(alerts_router, prefix="/api/v1")
+app.include_router(search_router, prefix="/api/v1")
