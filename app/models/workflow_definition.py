@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,7 +33,7 @@ class WorkflowDefinition(Base, TimestampMixin):
     edges: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
 
     is_active: Mapped[bool] = mapped_column(
-        Integer, default=1, comment="软删除/启用标志"
+        Boolean, default=True, comment="软删除/启用标志"
     )
 
     # — relationships —

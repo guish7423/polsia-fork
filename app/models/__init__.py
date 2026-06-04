@@ -25,6 +25,7 @@ from app.models.agent_gen_config import AgentGenConfig
 from app.models.alert import Alert
 from app.models.notification import Notification
 from app.models.knowledge_document import KnowledgeDocument
+from app.models.workflow_definition import WorkflowDefinition, WorkflowRun
 
 __all__ = [
     "Base",
@@ -58,4 +59,6 @@ __all__ = [
     "Alert",
     "Notification",
     "KnowledgeDocument",
+    "WorkflowDefinition",
+    "WorkflowRun",
 ]
