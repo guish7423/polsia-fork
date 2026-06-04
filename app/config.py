@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     """Master switch for generation config auto-tuning. When ``False``,
     ``ConfigTunerService.auto_tune`` returns ``None`` without applying changes."""
 
+    # Rate limiting
+    rate_limit_enabled: bool = True
+    """Master switch for the rate-limit middleware. Set ``False`` in tests."""
+
     # Agent streaming (SSE)
     agent_streaming_enabled: bool = True
     """Master switch for agent step streaming via SSE (Task 05)."""

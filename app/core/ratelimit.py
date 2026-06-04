@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.config import settings
 from app.core.redis_client import get_redis
 from app.core.tenant_context import get_current_tenant
 
@@ -58,6 +59,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         path = request.url.path
+
+        # Master switch (disabled in tests via settings)
+        if not settings.rate_limit_enabled:
+            return await call_next(request)
 
         # Bypass rate-limiting for exempt paths
         if path in EXEMPT_PATHS:

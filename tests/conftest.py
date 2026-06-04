@@ -86,6 +86,8 @@ async def api_client(async_db_session, mock_redis):
     settings.api_key = "test-key"
     # Disable quota enforcement in unit tests (no tenant records exist)
     settings.quota_enabled = False
+    # Disable rate limiting in unit tests (mock_redis may not suppress it correctly)
+    settings.rate_limit_enabled = False
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

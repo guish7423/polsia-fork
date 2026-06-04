@@ -6,6 +6,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from app.config import settings as app_settings
 from app.core.ratelimit import ENDPOINT_LIMITS, DEFAULT_LIMIT, RateLimitMiddleware, _resolve_limit
 from app.core.redis_client import get_redis
 
@@ -67,7 +68,9 @@ class TestRateLimitMiddleware:
     @pytest.mark.asyncio
     async def test_rate_limited_when_exceeded(self):
         """When Redis reports we're over the limit, return 429."""
-        from app.core import ratelimit as rl_module
+        # Enable rate limiting for this test (disabled by default in test app)
+        saved = app_settings.rate_limit_enabled
+        app_settings.rate_limit_enabled = True
 
         app = FastAPI()
 
@@ -100,6 +103,7 @@ class TestRateLimitMiddleware:
             assert resp.headers.get("Retry-After") is not None
         finally:
             ratelimit_mod.get_redis = original_get
+            app_settings.rate_limit_enabled = saved
 
     @pytest.mark.asyncio
     async def test_fail_open_on_redis_error(self, mock_redis):
