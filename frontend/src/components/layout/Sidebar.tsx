@@ -5,29 +5,55 @@ import {
   BarChart2,
   Bot,
   BriefcaseBusiness,
+  CalendarClock,
+  Container,
+  Database,
   DollarSign,
+  Gauge,
+  Languages,
   Mail,
   Megaphone,
   MessageSquare,
+  Plug,
+  Puzzle,
+  ScrollText,
   Settings,
+  Store,
   Twitter,
-  Database,
-  Languages,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 type NavItem = { href: string; labelKey: string; icon: typeof BarChart2 };
 
-const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard", labelKey: "nav.dashboard", icon: BarChart2 },
-  { href: "/agents", labelKey: "nav.agents", icon: Bot },
-  { href: "/tasks", labelKey: "nav.tasks", icon: BriefcaseBusiness },
-  { href: "/social", labelKey: "nav.social", icon: Twitter },
-  { href: "/outreach", labelKey: "nav.outreach", icon: Mail },
-  { href: "/ads", labelKey: "nav.ads", icon: Megaphone },
-  { href: "/finance", labelKey: "nav.finance", icon: DollarSign },
-  { href: "/memory", labelKey: "nav.memory", icon: Database },
-  { href: "/settings", labelKey: "nav.settings", icon: Settings },
+type NavGroup = { labelKey: string; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    labelKey: "nav.group.operations",
+    items: [
+      { href: "/dashboard", labelKey: "nav.dashboard", icon: BarChart2 },
+      { href: "/agents", labelKey: "nav.agents", icon: Bot },
+      { href: "/tasks", labelKey: "nav.tasks", icon: BriefcaseBusiness },
+      { href: "/social", labelKey: "nav.social", icon: Twitter },
+      { href: "/outreach", labelKey: "nav.outreach", icon: Mail },
+      { href: "/ads", labelKey: "nav.ads", icon: Megaphone },
+      { href: "/finance", labelKey: "nav.finance", icon: DollarSign },
+      { href: "/memory", labelKey: "nav.memory", icon: Database },
+    ],
+  },
+  {
+    labelKey: "nav.group.system",
+    items: [
+      { href: "/quota", labelKey: "nav.quota", icon: Gauge },
+      { href: "/mcp", labelKey: "nav.mcp", icon: Plug },
+      { href: "/plugins", labelKey: "nav.plugins", icon: Puzzle },
+      { href: "/audit", labelKey: "nav.audit", icon: ScrollText },
+      { href: "/scheduler", labelKey: "nav.scheduler", icon: CalendarClock },
+      { href: "/sandbox", labelKey: "nav.sandbox", icon: Container },
+      { href: "/marketplace", labelKey: "nav.marketplace", icon: Store },
+      { href: "/settings", labelKey: "nav.settings", icon: Settings },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -40,24 +66,33 @@ export function Sidebar() {
         <h1 className="text-lg font-bold text-indigo-400">Polsia</h1>
         <p className="text-xs text-gray-400">{t("brand.subtitle")}</p>
       </div>
-      <nav className="flex-1 p-3 space-y-1">
-        {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
-          const active = pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
-                active
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-300 hover:bg-gray-700"
-              }`}
-            >
-              <Icon size={16} />
-              {t(labelKey)}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 p-3 space-y-4">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.labelKey}>
+            <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-gray-500">
+              {t(group.labelKey)}
+            </p>
+            <div className="mt-1 space-y-1">
+              {group.items.map(({ href, labelKey, icon: Icon }) => {
+                const active = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${
+                      active
+                        ? "bg-indigo-600 text-white"
+                        : "text-gray-300 hover:bg-gray-700"
+                    }`}
+                  >
+                    <Icon size={16} />
+                    {t(labelKey)}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
       <div className="p-3 border-t border-gray-700">
         <button

@@ -12,8 +12,8 @@ import { useAgentStatus } from "@/hooks/useAgentStatus";
 const mockUseAgentStatus = useAgentStatus as jest.MockedFunction<typeof useAgentStatus>;
 
 const makeAgent = (overrides: Partial<AgentMonitorEntry> & { agent_type: string }): AgentMonitorEntry => ({
-  agent_type: overrides.agent_type,
-  name: overrides.agent_type.replace(/_/g, " "),
+  ...overrides,
+  name: (overrides.agent_type || "").replace(/_/g, " "),
   description: "",
   status: "idle",
   last_run: null,

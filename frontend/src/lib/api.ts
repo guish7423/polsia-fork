@@ -117,6 +117,113 @@ export type ActivityEvent = {
   };
 };
 
+// ─── Quota Dashboard ─────────────────────────────────────────────────────────
+
+export type QuotaDimension = {
+  allowed: boolean;
+  reason: string;
+  current: number;
+  limit: number;
+  usage_pct: number;
+};
+
+export type QuotaData = {
+  tenant_id: number;
+  agents: QuotaDimension;
+  tasks: QuotaDimension;
+  tokens: QuotaDimension;
+  cost: QuotaDimension;
+};
+
+// ─── MCP Tools ──────────────────────────────────────────────────────────────
+
+export type MCPTool = {
+  id: number;
+  name: string;
+  description: string;
+  endpoint: string;
+  enabled: boolean;
+};
+
+// ─── Plugins ────────────────────────────────────────────────────────────────
+
+export type Plugin = {
+  id: number;
+  tenant_id: number;
+  name: string;
+  description: string;
+  version: string;
+  webhook_url: string;
+  manifest: Record<string, unknown>;
+  enabled: boolean;
+  config: Record<string, unknown> | null;
+  last_called_at: string | null;
+  last_error: string | null;
+  created_at: string | null;
+};
+
+// ─── Audit Chain ────────────────────────────────────────────────────────────
+
+export type AuditEntry = {
+  id: number;
+  entry_type: string;
+  entry_id: number;
+  action: string;
+  hash: string;
+  previous_hash: string;
+  created_at: string | null;
+};
+
+export type AuditEntryListResponse = {
+  entries: AuditEntry[];
+  total: number;
+};
+
+// ─── Scheduler ──────────────────────────────────────────────────────────────
+
+export type SchedulerStatus = {
+  tenant_id: number;
+  running: number;
+  pending: number;
+  queued: number;
+  load_score: number;
+  agents_limit: number;
+  threshold_exceeded: boolean;
+};
+
+// ─── Sandbox ────────────────────────────────────────────────────────────────
+
+export type SandboxExecution = {
+  id: number;
+  action_type: string;
+  agent_type: string;
+  summary: string;
+  payload: Record<string, unknown>;
+  rule_id: string | null;
+  status: string;
+  created_at: string;
+};
+
+export type SandboxSummary = {
+  sandbox_enabled: boolean;
+  total_pending: number;
+  pending_approval: number;
+  approved: number;
+  total_rejected: number;
+  recent: SandboxExecution[];
+  rules: number;
+};
+
+// ─── Marketplace ────────────────────────────────────────────────────────────
+
+export type MarketplaceAgent = {
+  name: string;
+  type: string;
+  description: string;
+  installed: boolean;
+  version: string;
+};
+
 // ─── Usage ──────────────────────────────────────────────────────────────────
 
 export type UsageStats = {

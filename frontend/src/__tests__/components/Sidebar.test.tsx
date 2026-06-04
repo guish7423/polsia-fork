@@ -30,6 +30,15 @@ jest.mock("@/lib/i18n", () => ({
         "nav.finance": "Finance",
         "nav.memory": "Memory",
         "nav.settings": "Settings",
+        "nav.quota": "Quota",
+        "nav.mcp": "MCP Tools",
+        "nav.plugins": "Plugins",
+        "nav.audit": "Audit Chain",
+        "nav.scheduler": "Scheduler",
+        "nav.sandbox": "Sandbox",
+        "nav.marketplace": "Marketplace",
+        "nav.group.operations": "Operations",
+        "nav.group.system": "System",
         "brand.subtitle": "AI Agent Platform",
         "nav.lang": "中文",
       };
@@ -45,6 +54,19 @@ describe("Sidebar", () => {
     expect(screen.getByText("Agents")).toBeInTheDocument();
     expect(screen.getByText("Finance")).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.getByText("Quota")).toBeInTheDocument();
+    expect(screen.getByText("MCP Tools")).toBeInTheDocument();
+    expect(screen.getByText("Plugins")).toBeInTheDocument();
+    expect(screen.getByText("Audit Chain")).toBeInTheDocument();
+    expect(screen.getByText("Scheduler")).toBeInTheDocument();
+    expect(screen.getByText("Sandbox")).toBeInTheDocument();
+    expect(screen.getByText("Marketplace")).toBeInTheDocument();
+  });
+
+  it("renders section group headers", () => {
+    render(<Sidebar />);
+    expect(screen.getByText("Operations")).toBeInTheDocument();
+    expect(screen.getByText("System")).toBeInTheDocument();
   });
 
   it("highlights the active route", () => {
