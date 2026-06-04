@@ -29,6 +29,8 @@ import os
 import time
 from typing import Any, Callable
 
+from cachetools import LRUCache, TTLCache
+
 logger = logging.getLogger(__name__)
 
 # Redis connection (lazy init — only used when checkpointing is enabled)
@@ -69,6 +71,12 @@ def _get_redis():
     return _redis
 
 
+# Module-level shared fallback store for cross-instance persistence within
+# the same process when Redis is unavailable.
+# LRUCache bounds memory; _load handles per-instance TTL expiry.
+_SHARED_FALLBACK: LRUCache = LRUCache(maxsize=10000)
+
+
 class Checkpoint:
     """Per-task checkpoint for step-level durability.
 
@@ -77,6 +85,10 @@ class Checkpoint:
 
     On retry, ``run()`` checks Redis first.  If the step result exists and the
     TTL hasn't expired, the step is skipped and the cached result is returned.
+
+    In-memory fallback (process-local) is shared across Checkpoint instances
+    with the same ``task_id`` via a module-level store, enabling retry-skip
+    within the same process without Redis.
     """
 
     def __init__(self, task_id: str, ttl: int = 3600) -> None:
@@ -85,7 +97,7 @@ class Checkpoint:
         self._key_prefix = f"checkpoint:{task_id}:"
         self._redis = _get_redis()
         self._fallback_store: dict[str, tuple[float, Any]] = {}
-        """In-memory fallback when Redis is unavailable."""
+        """Instance-level in-memory fallback (not shared across instances)."""
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -128,6 +140,76 @@ class Checkpoint:
         """Full Redis key for a given step."""
         return f"{self._key_prefix}{step_name}"
 
+    # ── DB persistence (durable execution) ────────────────────────────────────
+
+    async def save_to_db(self, db: Any, agent_run_id: int) -> None:
+        """Persist all step checkpoints to AgentRun record (SQL)."""
+        from app.models.agent_run import AgentRun
+
+        run = await db.get(AgentRun, agent_run_id)
+        if not run:
+            logger.warning("save_to_db: AgentRun %s not found", agent_run_id)
+            return
+
+        # Collect all step results from instance + shared in-memory stores
+        steps: dict[str, Any] = {}
+        for store in (self._fallback_store, _SHARED_FALLBACK):
+            for key, val in store.items():
+                step_name = key.replace(self._key_prefix, "")
+                if self._key_prefix in key and step_name not in steps:
+                    steps[step_name] = val[1] if isinstance(val, tuple) else val
+
+        # Also try Redis for each active step
+        if self._redis:
+            try:
+                keys = await self._redis.keys(f"{self._key_prefix}*")
+                for k in keys:
+                    key_str = k.decode() if isinstance(k, bytes) else str(k)
+                    step_name = key_str.replace(self._key_prefix, "")
+                    raw = await self._redis.get(k)
+                    if raw and step_name not in steps:
+                        steps[step_name] = json.loads(raw)
+            except Exception:
+                pass  # Redis unavailable, use in-memory data only
+
+        run.checkpoint_data = {
+            "steps": steps,
+            "updated_at": __import__("datetime").datetime.now(
+                __import__("datetime").timezone.utc
+            ).isoformat(),
+        }
+        await db.flush()
+
+    @classmethod
+    async def restore_from_db(
+        cls, db: Any, agent_run_id: int, ttl: int = 3600
+    ) -> Checkpoint | None:
+        """Restore checkpoint from AgentRun record (SQL).
+
+        Returns ``None`` if the AgentRun doesn't exist or has no
+        ``checkpoint_data``.
+        """
+        from app.models.agent_run import AgentRun
+
+        run = await db.get(AgentRun, agent_run_id)
+        if not run or not run.checkpoint_data:
+            return None
+
+        task_id = f"run:{agent_run_id}"
+        cp = Checkpoint(task_id, ttl)
+
+        # Pre-populate shared fallback store from DB
+        for step_name, result in run.checkpoint_data.get("steps", {}).items():
+            key = cp.checkpoint_key(step_name)
+            _SHARED_FALLBACK[key] = (time.monotonic(), result)
+
+        # Also populate instance store for direct instance access
+        for step_name, result in run.checkpoint_data.get("steps", {}).items():
+            key = cp.checkpoint_key(step_name)
+            cp._fallback_store[key] = (time.monotonic(), result)
+
+        return cp
+
     # ── Internals ─────────────────────────────────────────────────────────
 
     def _enabled(self) -> bool:
@@ -147,7 +229,14 @@ class Checkpoint:
             except Exception as exc:
                 logger.debug("Checkpoint Redis load failed: %s", exc)
 
-        # Fallback: in-memory store
+        # Fallback: shared in-memory store (cross-instance) — LRUCache bounds size, manual TTL
+        shared_entry = _SHARED_FALLBACK.get(key)
+        if shared_entry is not None:
+            ts, val = shared_entry
+            if time.monotonic() - ts < self.ttl:
+                return val
+
+        # Fallback: instance in-memory store
         entry = self._fallback_store.get(key)
         if entry is not None:
             ts, val = entry
@@ -168,7 +257,10 @@ class Checkpoint:
             except Exception as exc:
                 logger.debug("Checkpoint Redis save failed: %s", exc)
 
-        # Fallback: in-memory
+        # Shared fallback (cross-instance) — LRUCache bounds size, store TTL for manual expiry
+        _SHARED_FALLBACK[key] = (time.monotonic(), value)
+
+        # Instance fallback
         self._fallback_store[key] = (time.monotonic(), value)
 
     async def _maybe_await(self, value: Any) -> Any:
@@ -180,7 +272,7 @@ class Checkpoint:
 
 # ── Convenience ──────────────────────────────────────────────────────────────
 
-_FACTORY_CACHE: dict[str, Checkpoint] = {}
+_FACTORY_CACHE: TTLCache = TTLCache(maxsize=1000, ttl=3600)
 
 
 def get_checkpoint(task_id: str, ttl: int = 3600) -> Checkpoint:

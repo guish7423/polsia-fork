@@ -25,6 +25,7 @@ def mock_claude_cli(monkeypatch):
 async def async_db_session():
     """SQLite in-memory async session — no Postgres required for unit tests."""
     from app.core.database import Base
+    from app.models.tenant import Tenant
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -36,6 +37,21 @@ async def async_db_session():
 
     Session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with Session() as session:
+        # Seed default tenant so tenant_id=1 always exists for backward compat
+        tenant = Tenant(
+            id=1,
+            name="Default",
+            api_key="dev-key",
+            plan="enterprise",
+            active=True,
+            agents_limit=9999,
+            tasks_monthly_limit=999999,
+            tokens_monthly_limit=999_999_999,
+            cost_monthly_limit_usd=99999.0,
+            rpm_limit=9999,
+        )
+        session.add(tenant)
+        await session.flush()
         yield session
 
     await engine.dispose()

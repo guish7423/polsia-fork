@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -14,6 +14,7 @@ class ModelCall(Base):
     __tablename__ = "model_calls"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(64), index=True)
     model: Mapped[str] = mapped_column(String(128), index=True)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)

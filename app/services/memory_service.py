@@ -15,6 +15,7 @@ async def store_memory(
     content: str,
     source: str | None = None,
     tags: list[str] | None = None,
+    tenant_id: int | None = None,
 ) -> MemoryEntry:
     """Store a memory entry in PostgreSQL (ChromaDB integration TBD)."""
     chroma_id = str(uuid.uuid4())
@@ -25,6 +26,7 @@ async def store_memory(
         source=source,
         tags=tags or [],
         chroma_id=chroma_id,
+        tenant_id=tenant_id,
     )
     db.add(entry)
     await db.flush()
@@ -41,11 +43,14 @@ async def search_memory(
     db: AsyncSession,
     category: str | None = None,
     limit: int = 20,
+    tenant_id: int | None = None,
 ) -> list[MemoryEntry]:
     """Search memory entries — currently DB-only (ChromaDB vector search TBD)."""
     query = select(MemoryEntry).order_by(MemoryEntry.created_at.desc()).limit(limit)
     if category:
         query = query.where(MemoryEntry.category == category)
+    if tenant_id is not None:
+        query = query.where(MemoryEntry.tenant_id == tenant_id)
     result = await db.execute(query)
     return list(result.scalars().all())
 

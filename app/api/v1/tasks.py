@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.tenant_context import get_current_tenant
 from app.services.task_service import (
     VALID_AGENT_TYPES,
     create_task,
@@ -69,6 +70,17 @@ async def get_task_by_id(
     }
 
 
+# ─── Tenant ID dependency ────────────────────────────────────────────────
+
+
+async def _get_tenant_id() -> int:
+    """Extract tenant ID from the current request context."""
+    tenant = get_current_tenant()
+    if tenant is None:
+        return 0
+    return tenant.id
+
+
 @router.post("/tasks", status_code=201)
 async def create_new_task(
     title: str,
@@ -77,6 +89,7 @@ async def create_new_task(
     priority: int = 3,
     source: str = "api",
     db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(_get_tenant_id),
 ):
     """Create a new task."""
     if not validate_agent_type(agent_type):
@@ -84,7 +97,7 @@ async def create_new_task(
             status_code=400,
             detail=f"Invalid agent_type. Must be one of: {VALID_AGENT_TYPES}",
         )
-    task = await create_task(db, title, agent_type, description, priority, source)
+    task = await create_task(db, title, agent_type, description, priority, source, tenant_id=tenant_id)
     return {
         "id": task.id,
         "title": task.title,

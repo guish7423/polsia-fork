@@ -18,6 +18,29 @@ from __future__ import annotations
 from app.agents.schema import AgentSchema, AgentTier, register_schema
 
 
+# ─── Capability Definitions ────────────────────────────────────────────────────
+
+AGENT_CAPABILITIES: dict[str, list[str]] = {
+    "orchestrator": ["planning", "delegation", "scheduling", "reporting"],
+    "supervisor": ["goal_decomposition", "dependency_analysis", "task_planning"],
+    "evolution": ["performance_analysis", "trend_detection", "optimization"],
+    "monitor": ["health_check", "alerting", "system_monitoring"],
+    "market_intel": ["web_search", "competitor_tracking", "trend_analysis", "news_scanning"],
+    "social_media": ["content_creation", "scheduling", "social_posting", "brand_management"],
+    "competitor_research": ["web_scraping", "price_tracking", "sentiment_analysis", "competitive_intel"],
+    "business_planning": ["financial_modeling", "market_analysis", "strategic_planning"],
+    "code_generation": ["code_writing", "code_review", "testing", "code_generation"],
+    "customer_support": ["ticket_management", "faq_lookup", "escalation", "customer_service"],
+    "email_outreach": ["email_campaign", "segmentation", "lead_nurturing", "email_marketing"],
+    "ads_management": ["campaign_management", "budget_optimization", "ad_creation"],
+    "lead_nurturing": ["email_sequence", "lead_scoring", "follow_up"],
+    "finance": ["revenue_tracking", "expense_management", "forecasting", "financial_analysis"],
+    "deployment": ["docker", "kubernetes", "ci_cd", "infrastructure"],
+    "deploy_agent": ["deployment_planning", "progress_tracking", "project_management"],
+    "order_scanner": ["platform_scanning", "job_evaluation", "opportunity_scoring"],
+    "order_fulfiller": ["task_decomposition", "scheduling", "quality_check", "fulfillment"],
+}
+
 # Flag to prevent re-registration on module re-import
 _loaded = False
 
@@ -298,6 +321,12 @@ def _register_all() -> None:
 
     # ── SANDBOXED Tier (always blocked, experimental) ─────────────────────
     # (Currently no agents assigned to SANDBOXED — reserved for future canary agents)
+
+    # ── Set capability strings ────────────────────────────────────────────
+    for agent_type, caps in AGENT_CAPABILITIES.items():
+        schema = get_schema(agent_type)
+        if schema:
+            schema.capabilities = caps
 
     # ── Don't use ─────────────────────────────────────────────────────────
     # ads_management tier was STANDARD to keep sandbox permissive

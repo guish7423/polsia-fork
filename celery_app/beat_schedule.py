@@ -93,4 +93,10 @@ beat_schedule = {
         "schedule": crontab(hour=9, minute=0, day_of_week=1),
         "options": {"queue": "maintenance"},
     },
+    # Every 6h: cleanup expired mesh messages
+    "cleanup-expired-mesh-messages": {
+        "task": "celery_app.tasks.mesh_tasks.cleanup_expired_mesh_messages",
+        "schedule": crontab(minute=0, hour="*/6"),
+        "options": {"queue": "maintenance"},
+    },
 }

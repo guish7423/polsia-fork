@@ -365,3 +365,148 @@ class BasePolsiaAgent:
             "reason": reason,
             "message": "Awaiting human approval via HQ — interrupt #{iid}",
         }
+
+    # ── Agent Mesh Methods ─────────────────────────────────────────────────
+
+    async def send_message(
+        self,
+        db: AsyncSession,
+        message_type: str,
+        title: str,
+        *,
+        recipient_type: str | None = None,
+        body: dict | None = None,
+        priority: int = 3,
+    ) -> dict:
+        """Send a message through the agent mesh.
+
+        Args:
+            db: Database session.
+            message_type: 'generic', 'delegation', 'broadcast', 'result'.
+            title: Short message title.
+            recipient_type: Target agent type. None = broadcast.
+            body: JSON payload.
+            priority: 1-5 priority.
+
+        Returns:
+            Dict with message_id and status.
+        """
+        from app.services.mesh_bus import send_message as _send
+
+        msg = await _send(
+            db=db,
+            # TODO: resolve from self.tenant_id or tenant context (Phase C adds proper resolution)
+            tenant_id=1,
+            sender_type=self.agent_type,
+            recipient_type=recipient_type,
+            message_type=message_type,
+            title=title,
+            body=body,
+            priority=priority,
+        )
+        return {"message_id": msg.id, "status": "sent"}
+
+    async def receive_messages(
+        self,
+        db: AsyncSession,
+        status: str | None = "pending",
+        limit: int = 10,
+    ) -> list[dict]:
+        """Fetch incoming mesh messages for this agent.
+
+        Args:
+            db: Database session.
+            status: Filter by status ('pending', 'delivered', 'read', None=all).
+            limit: Max messages to return.
+
+        Returns:
+            List of message dicts.
+        """
+        from app.services.mesh_bus import get_messages_for_agent
+
+        msgs = await get_messages_for_agent(
+            db=db,
+            tenant_id=1,  # TODO: resolve from self.tenant_id in Phase C
+            agent_type=self.agent_type,
+            status=status,
+            limit=limit,
+        )
+        return [
+            {
+                "id": m.id,
+                "sender_type": m.sender_type,
+                "message_type": m.message_type,
+                "title": m.title,
+                "body": m.body,
+                "priority": m.priority,
+                "status": m.status,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in msgs
+        ]
+
+    def query_capabilities(
+        self,
+        capability: str,
+        min_tier: str | None = None,
+    ) -> list[dict]:
+        """Find other agents that have a specific capability.
+
+        Args:
+            capability: The capability to search (e.g. 'web_search').
+            min_tier: Optional minimum tier filter.
+
+        Returns:
+            List of matching agent descriptors.
+        """
+        from app.services.capability_registry import find_agents_by_capability
+
+        return find_agents_by_capability(capability, min_tier=min_tier)
+
+    async def delegate_to_agent(
+        self,
+        db: AsyncSession,
+        capability: str,
+        title: str,
+        *,
+        body: dict | None = None,
+        min_tier: str | None = None,
+        priority: int = 3,
+    ) -> dict:
+        """Delegate a subtask to the best agent that has a specific capability.
+
+        Routes the message using the capability registry, falling back to
+        direct agent_type routing if needed. Returns the message status and
+        the target agent type.
+
+        Args:
+            db: Database session.
+            capability: Required capability (e.g. 'web_search').
+            title: Short task description.
+            body: Task payload.
+            min_tier: Minimum tier for the target agent.
+            priority: 1-5 priority.
+
+        Returns:
+            Dict with message_id, target_agent, status.
+            If no agent found, returns {"status": "no_agent_found"}.
+        """
+        from app.services.mesh_bus import send_to_capability
+
+        msg = await send_to_capability(
+            db=db,
+            tenant_id=1,  # TODO: resolve from self.tenant_id in Phase C
+            sender_type=self.agent_type,
+            capability=capability,
+            title=title,
+            body=body,
+            min_tier=min_tier,
+            priority=priority,
+        )
+        if msg is None:
+            return {"status": "no_agent_found", "capability": capability}
+        return {
+            "message_id": msg.id,
+            "target_agent": msg.recipient_type,
+            "status": "delegated",
+        }

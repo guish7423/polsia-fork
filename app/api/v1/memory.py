@@ -5,9 +5,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import verify_api_key
 from app.core.database import get_db
+from app.core.tenant_context import get_current_tenant
 from app.services.memory_service import search_memory, store_memory
 
 router = APIRouter(tags=["memory"])
+
+
+# ─── Tenant ID dependency ────────────────────────────────────────────────
+
+
+async def _get_tenant_id() -> int:
+    """Extract tenant ID from the current request context."""
+    tenant = get_current_tenant()
+    if tenant is None:
+        return 0
+    return tenant.id
 
 
 @router.post("/memory", status_code=201)
@@ -15,6 +27,7 @@ async def create_memory(
     body: dict,
     api_key: str = Depends(verify_api_key),
     db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(_get_tenant_id),
 ):
     """Store a new memory entry."""
     entry = await store_memory(
@@ -24,6 +37,7 @@ async def create_memory(
         content=body.get("content", ""),
         source=body.get("source"),
         tags=body.get("tags"),
+        tenant_id=tenant_id,
     )
     return {
         "id": entry.id,

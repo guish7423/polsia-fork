@@ -1,4 +1,4 @@
-"""Redis-backed rate limiting middleware.
+"""Redis-backed rate limiting middleware, with per-tenant RPM awareness.
 
 Usage::
 
@@ -13,6 +13,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.core.redis_client import get_redis
+from app.core.tenant_context import get_current_tenant
 
 # ─── Rate-limit presets ────────────────────────────────────────────────────────
 # Maps URL-path prefixes to ``(max_requests, window_seconds)`` tuples.
@@ -35,6 +36,18 @@ def _resolve_limit(path: str) -> tuple[int, int]:
     return DEFAULT_LIMIT
 
 
+def _get_effective_rpm(default_rpm: int) -> int:
+    """Apply per-tenant ``rpm_limit`` over the default if set.
+
+    The tenant's own ``rpm_limit`` acts as a ceiling — the effective RPM
+    can never exceed the global default for the endpoint.
+    """
+    tenant = get_current_tenant()
+    if tenant is not None and tenant.rpm_limit:
+        return min(default_rpm, tenant.rpm_limit)
+    return default_rpm
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Enforce per-endpoint request-rate limits via Redis sorted sets.
 
@@ -51,6 +64,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         max_reqs, window = _resolve_limit(path)
+        max_reqs = _get_effective_rpm(max_reqs)
         client_ip: str = request.client.host if request.client else "unknown"
 
         prefix: str | None = None

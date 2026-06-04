@@ -47,6 +47,9 @@ async def async_db_session():
 def mock_redis(mocker):
     mock = AsyncMock()
     mock.publish = AsyncMock(return_value=1)
+    mock.zcard = AsyncMock(return_value=0)  # 不触发速率限制
+    mock.zadd = AsyncMock(return_value=1)
+    mock.expire = AsyncMock(return_value=True)
     mocker.patch("app.core.redis_client.get_redis", return_value=mock)
     mocker.patch("app.core.events.get_redis", return_value=mock)
     return mock

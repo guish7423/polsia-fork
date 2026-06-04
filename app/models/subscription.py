@@ -1,30 +1,34 @@
-"""Subscription model for SaaS multi-tenancy."""
+"""Subscription model — Stripe subscription with tenant FK."""
+
+from __future__ import annotations
+
 from datetime import datetime
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from typing import Optional
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
-from app.models.base import Base
+
+from app.models.base import Base, TimestampMixin
 
 
-class Subscription(Base):
+class Subscription(Base, TimestampMixin):
     __tablename__ = "subscriptions"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    stripe_customer_id: Mapped[str | None] = mapped_column(String(255))
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255))
-    stripe_price_id: Mapped[str | None] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(50), server_default="inactive")
-    api_key: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    plan: Mapped[str] = mapped_column(String(50), server_default="starter")
-    agents_limit: Mapped[int] = mapped_column(Integer, server_default="3")
-    tasks_monthly_limit: Mapped[int] = mapped_column(Integer, server_default="1000")
-    active: Mapped[bool] = mapped_column(Boolean, server_default="false")
-    onboarding_completed: Mapped[bool] = mapped_column(Boolean, server_default="false")
-    current_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("tenants.id"), nullable=True, index=True
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
     )
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
+    stripe_price_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    current_period_start: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    status: Mapped[str] = mapped_column(String(50), default="active")

@@ -30,7 +30,7 @@ AGENT_DESCRIPTIONS: dict[str, str] = {
 }
 
 
-async def get_agent_monitor(db: AsyncSession) -> list[dict]:
+async def get_agent_monitor(db: AsyncSession, tenant_id: int | None = None) -> list[dict]:
     """Build a real-time agent monitor snapshot.
 
     For each registered agent type, returns its current status (idle/running),
@@ -63,7 +63,7 @@ async def get_agent_monitor(db: AsyncSession) -> list[dict]:
     )
 
     # Run counts and total cost from AgentRun
-    run_stats_raw = await db.execute(
+    run_stats_query = (
         select(
             AgentRun.agent_type,
             func.count().label("run_count"),
@@ -74,6 +74,9 @@ async def get_agent_monitor(db: AsyncSession) -> list[dict]:
         .where(AgentRun.started_at >= since)
         .group_by(AgentRun.agent_type)
     )
+    if tenant_id is not None:
+        run_stats_query = run_stats_query.where(AgentRun.tenant_id == tenant_id)
+    run_stats_raw = await db.execute(run_stats_query)
     run_stats: dict[str, dict] = {}
     for row in run_stats_raw.all():
         run_stats[row.agent_type] = {
@@ -128,6 +131,7 @@ async def get_agent_runs(
     status: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    tenant_id: int | None = None,
 ) -> tuple[list[AgentRun], int]:
     """List agent runs with optional filters. Returns (runs, total_count)."""
     query = select(AgentRun)
@@ -139,6 +143,9 @@ async def get_agent_runs(
     if status:
         query = query.where(AgentRun.status == status)
         count_query = count_query.where(AgentRun.status == status)
+    if tenant_id is not None:
+        query = query.where(AgentRun.tenant_id == tenant_id)
+        count_query = count_query.where(AgentRun.tenant_id == tenant_id)
 
     # Total count
     total_result = await db.execute(count_query)
@@ -213,6 +220,7 @@ async def get_agent_run_stats(
     db: AsyncSession,
     agent_type: str | None = None,
     days: int = 7,
+    tenant_id: int | None = None,
 ) -> dict:
     """Aggregate run stats for the last N days."""
     since = datetime.now(timezone.utc).replace(
@@ -233,6 +241,8 @@ async def get_agent_run_stats(
 
     if agent_type:
         query = query.where(AgentRun.agent_type == agent_type)
+    if tenant_id is not None:
+        query = query.where(AgentRun.tenant_id == tenant_id)
 
     query = query.group_by(AgentRun.agent_type, func.date(AgentRun.started_at))
     query = query.order_by(AgentRun.agent_type, func.date(AgentRun.started_at))

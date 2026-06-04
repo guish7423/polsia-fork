@@ -63,6 +63,8 @@ class AgentSchema:
     output_schema: dict[str, Any] | None = None
     extra_instructions: str | None = None
     tags: list[str] = field(default_factory=list)
+    capabilities: list[str] = field(default_factory=list)
+    """List of capabilities this agent provides (e.g. 'web_search', 'content_creation', 'financial_analysis')."""
     max_tasks_per_run: int = 5
     """Maximum tasks this agent can create in a single run."""
     retry_on_failure: bool = True

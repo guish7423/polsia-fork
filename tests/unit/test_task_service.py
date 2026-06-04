@@ -1,6 +1,16 @@
 """Test task_service — CRUD and state machine."""
 import pytest
 
+from app.services.tenant_service import create_tenant
+
+
+async def _make_tenant(async_db_session):
+    """Create a test tenant and return its id."""
+    t = await create_tenant(async_db_session, name="TestCo", api_key="key_test")
+    await async_db_session.flush()
+    return t.id
+
+
 from app.services.task_service import (
     create_task,
     get_task,
@@ -12,11 +22,13 @@ from app.services.task_service import (
 
 @pytest.mark.asyncio
 async def test_create_task(async_db_session):
+    tid = await _make_tenant(async_db_session)
     task = await create_task(
         async_db_session,
         title="Write a blog post",
         agent_type="social_media",
         priority=2,
+        tenant_id=tid,
     )
     await async_db_session.commit()
 
@@ -28,7 +40,8 @@ async def test_create_task(async_db_session):
 
 @pytest.mark.asyncio
 async def test_get_task(async_db_session):
-    task = await create_task(async_db_session, title="Find prospects", agent_type="email_outreach")
+    tid = await _make_tenant(async_db_session)
+    task = await create_task(async_db_session, title="Find prospects", agent_type="email_outreach", tenant_id=tid)
     await async_db_session.commit()
 
     fetched = await get_task(async_db_session, task.id)
@@ -44,7 +57,8 @@ async def test_get_task_not_found(async_db_session):
 
 @pytest.mark.asyncio
 async def test_update_task_status(async_db_session):
-    task = await create_task(async_db_session, title="Test", agent_type="finance")
+    tid = await _make_tenant(async_db_session)
+    task = await create_task(async_db_session, title="Test", agent_type="finance", tenant_id=tid)
     await async_db_session.commit()
 
     # 必须走合法路径: pending → in_progress → completed
@@ -77,8 +91,9 @@ async def test_update_task_status_blocks_illegal(async_db_session):
 
 @pytest.mark.asyncio
 async def test_get_tasks_filters_by_status(async_db_session):
-    await create_task(async_db_session, title="Task A", agent_type="finance")
-    t2 = await create_task(async_db_session, title="Task B", agent_type="social_media")
+    tid = await _make_tenant(async_db_session)
+    await create_task(async_db_session, title="Task A", agent_type="finance", tenant_id=tid)
+    t2 = await create_task(async_db_session, title="Task B", agent_type="social_media", tenant_id=tid)
     await async_db_session.commit()
     # 合法路径
     await update_task_status(async_db_session, t2.id, "in_progress")

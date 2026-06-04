@@ -61,6 +61,37 @@ class Settings(BaseSettings):
     morning_cycle_hour: int = 6
     evening_cycle_hour: int = 18
 
+    # Durable execution (checkpoint)
+    durable_execution_enabled: bool = False
+    """Opt-in: when True, Celery tasks use checkpoint-based durable execution."""
+
+    # Multi-tenant
+    default_plan: str = "starter"
+    default_agents_limit: int = 3
+    default_tasks_monthly_limit: int = 1000
+    default_tokens_monthly_limit: int = 10_000_000
+
+    # Quota system
+    quota_enabled: bool = True
+    """Master switch for quota enforcement. When ``False`` all checks pass."""
+
+    quota_middleware_enabled: bool = True
+    """Master switch for the quota enforcement middleware. When ``False``
+    the middleware skips all checks and passes requests through."""
+    """Master switch for quota enforcement.  When ``False`` all checks pass."""
+
+    # Sandbox runtime (Docker container isolation)
+    sandbox_enabled: bool = False
+    """When ``True``, route agent execution through Docker sandbox containers."""
+
+    # Resource-aware agent scheduler
+    scheduler_enabled: bool = True
+    """When ``True``, the scheduler gates agent dispatch through load-aware
+    queue assignment. When ``False``, agents go directly to the default queue."""
+
+    quota_warning_threshold: float = 0.8
+    """Usage percentage at which warnings are issued (0.0 – 1.0)."""
+
     model_config = {"env_prefix": ""}
 
 

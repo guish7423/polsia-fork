@@ -20,8 +20,35 @@ async def record_model_call(
     success: bool = True,
     task_category: str | None = None,
     error: str | None = None,
-) -> ModelCall:
-    """Insert a ModelCall record and return it."""
+    tenant_id: int | None = None,
+) -> ModelCall | None:
+    """Insert a ModelCall record and return it.
+
+    When quota enforcement is active and the tenant's token or cost
+    budget has been exceeded the call is **skipped** (returns ``None``)
+    instead of being recorded.  The actual LLM call already happened
+    — we only skip the bookkeeping.
+    """
+    # ── Quota gate ───────────────────────────────────────────────────────
+    from app.config import settings
+
+    if tenant_id is not None and settings.quota_enabled:
+        from app.services.quota_service import check_cost_budget, check_token_budget
+
+        token_ok = await check_token_budget(db, tenant_id)
+        cost_ok = await check_cost_budget(db, tenant_id)
+
+        if not token_ok.allowed or not cost_ok.allowed:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Skipping model call recording — quota exceeded "
+                "(tenant=%s, token_ok=%s, cost_ok=%s)",
+                tenant_id, token_ok.allowed, cost_ok.allowed,
+            )
+            return None
+
     record = ModelCall(
         provider=provider,
         model=model,
@@ -32,6 +59,7 @@ async def record_model_call(
         success=success,
         task_category=task_category,
         error=error,
+        tenant_id=tenant_id,
     )
     db.add(record)
     await db.flush()
@@ -43,6 +71,7 @@ async def get_usage_stats(
     *,
     since: datetime | None = None,
     until: datetime | None = None,
+    tenant_id: int | None = None,
 ) -> dict:
     """Aggregate usage statistics over a time range.
 
@@ -53,6 +82,8 @@ async def get_usage_stats(
         where_conditions.append(ModelCall.created_at >= since)
     if until is not None:
         where_conditions.append(ModelCall.created_at < until)
+    if tenant_id is not None:
+        where_conditions.append(ModelCall.tenant_id == tenant_id)
 
     base = select(ModelCall)
     if where_conditions:
@@ -102,6 +133,7 @@ async def get_model_breakdown(
     *,
     since: datetime | None = None,
     until: datetime | None = None,
+    tenant_id: int | None = None,
 ) -> list[dict]:
     """Per-model cost and token breakdown.
 
@@ -115,6 +147,9 @@ async def get_model_breakdown(
     if until is not None:
         where_clause += " AND created_at < :until"
         params["until"] = until
+    if tenant_id is not None:
+        where_clause += " AND tenant_id = :tenant_id"
+        params["tenant_id"] = tenant_id
 
     sql = f"""
         SELECT
@@ -149,13 +184,19 @@ async def get_model_breakdown(
 async def get_daily_usage(
     db: AsyncSession,
     days: int = 30,
+    tenant_id: int | None = None,
 ) -> list[dict]:
     """Daily usage aggregation for trend charts.
 
     Returns list of ``{date, calls, input_tokens, output_tokens, cost_usd}``.
     """
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    sql = """
+    where_extra = ""
+    params: dict = {"since": since}
+    if tenant_id is not None:
+        where_extra = " AND tenant_id = :tenant_id"
+        params["tenant_id"] = tenant_id
+    sql = f"""
         SELECT
             DATE(created_at)                    AS day,
             COUNT(*)                           AS calls,
@@ -163,11 +204,11 @@ async def get_daily_usage(
             COALESCE(SUM(output_tokens), 0)    AS output_tokens,
             COALESCE(SUM(cost_usd), 0.0)       AS cost_usd
         FROM model_calls
-        WHERE created_at >= :since
+        WHERE created_at >= :since{where_extra}
         GROUP BY DATE(created_at)
         ORDER BY day ASC
     """
-    rows = (await db.execute(text(sql), {"since": since})).all()
+    rows = (await db.execute(text(sql), params)).all()
     return [
         {
             "date": str(r.day),
@@ -183,6 +224,7 @@ async def get_daily_usage(
 async def get_recent_calls(
     db: AsyncSession,
     limit: int = 50,
+    tenant_id: int | None = None,
 ) -> list[dict]:
     """Most recent LLM calls."""
     q = (
@@ -190,6 +232,8 @@ async def get_recent_calls(
         .order_by(ModelCall.created_at.desc())
         .limit(limit)
     )
+    if tenant_id is not None:
+        q = q.where(ModelCall.tenant_id == tenant_id)
     rows = (await db.execute(q)).scalars().all()
     return [
         {
@@ -214,6 +258,7 @@ async def get_task_category_breakdown(
     *,
     since: datetime | None = None,
     until: datetime | None = None,
+    tenant_id: int | None = None,
 ) -> list[dict]:
     """Usage breakdown by task category."""
     where_clause = ""
@@ -224,6 +269,9 @@ async def get_task_category_breakdown(
     if until is not None:
         where_clause += " AND created_at < :until"
         params["until"] = until
+    if tenant_id is not None:
+        where_clause += " AND tenant_id = :tenant_id"
+        params["tenant_id"] = tenant_id
 
     sql = f"""
         SELECT
