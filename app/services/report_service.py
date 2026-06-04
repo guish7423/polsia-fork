@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.report import DailyReport
 from app.models.task import Task
+from app.models.agent_run import AgentRun
 from app.models.activity_log import ActivityLog
 from app.models.finance import RevenueSnapshot, ExpenseRecord
 from app.services.model_usage_service import get_usage_stats
@@ -113,7 +114,11 @@ async def compute_dashboard_summary(db: AsyncSession) -> dict:
         "tasks_today_pending": pending_tasks,
         "tasks_today_completed": completed_tasks,
         "tasks_today_failed": failed_tasks,
-        "active_agents": 10,
+        "active_agents": (
+            await db.execute(
+                select(func.count(func.distinct(AgentRun.agent_type)))
+            )
+        ).scalar() or 0,
         "recent_activity_count": recent_activity_count,
         "total_expenses_cents": total_expenses,
         "mrr_cents": latest_revenue.mrr_cents if latest_revenue else 0,

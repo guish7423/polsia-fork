@@ -134,7 +134,11 @@ export default function AgentsPage() {
     return (
       <div
         key={s.agent_type}
-        className="bg-gray-800 rounded-lg p-4 flex items-center justify-between hover:bg-gray-750 transition-colors"
+        className={`bg-gray-800 rounded-lg p-4 flex items-center justify-between hover:bg-gray-750 transition-colors ${
+          s.status === "running"
+            ? "ring-1 ring-emerald-500/50 animate-pulse"
+            : ""
+        }`}
       >
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">

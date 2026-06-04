@@ -1,21 +1,13 @@
+"use client";
 import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { AgentStatusGrid } from "@/components/dashboard/AgentStatusGrid";
 import { GlobalAlertBanner } from "@/components/dashboard/GlobalAlertBanner";
 import { MetricsCard } from "@/components/dashboard/MetricsCard";
 import { SystemHealthCard } from "@/components/dashboard/SystemHealthCard";
-import { api, type DashboardSummary } from "@/lib/api";
+import { useDashboardRefresh } from "@/hooks/useDashboardRefresh";
 
-async function getSummary(): Promise<DashboardSummary | null> {
-  try {
-    return await api.get<DashboardSummary>("/dashboard/summary");
-  } catch {
-    return null;
-  }
-}
-
-export default async function DashboardPage() {
-  const summary = await getSummary();
-
+export default function DashboardPage() {
+  const { summary, lastUpdated } = useDashboardRefresh(30000);
   const kpis = summary?.kpis ?? {};
 
   return (
@@ -23,9 +15,16 @@ export default async function DashboardPage() {
       {/* Global Alert Banner — full width, top of page */}
       <GlobalAlertBanner />
 
-      {/* Title row with HealthCard */}
+      {/* Title row with last-updated + HealthCard */}
       <div className="flex items-start justify-between gap-6">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          {lastUpdated && (
+            <span className="text-xs text-gray-500 mt-1">
+              Last updated: {lastUpdated}
+            </span>
+          )}
+        </div>
         <div className="w-72 flex-shrink-0">
           <SystemHealthCard />
         </div>

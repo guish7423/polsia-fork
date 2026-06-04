@@ -60,5 +60,5 @@ async def test_update_evening_summary(async_db_session):
 async def test_compute_dashboard_summary_empty(async_db_session):
     summary = await compute_dashboard_summary(async_db_session)
     assert summary["tasks_today_total"] == 0
-    assert summary["active_agents"] == 10
+    assert summary["active_agents"] == 0  # no AgentRun rows in empty DB
     assert summary["mrr_cents"] == 0
