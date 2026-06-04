@@ -1,0 +1,8 @@
+# Default owners for all files
+* @guish7423
+
+# Documentation changes
+docs/ @guish7423
+
+# CI/CD pipeline
+.github/workflows/ @guish7423
