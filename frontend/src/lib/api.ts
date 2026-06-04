@@ -23,6 +23,7 @@ export const api = {
     apiFetch<T>(path, { method: "POST", body: JSON.stringify(body) }),
   put: <T>(path: string, body?: unknown) =>
     apiFetch<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  del: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
 };
 
 // ─── Agent Monitor ──────────────────────────────────────────────────────────
@@ -501,3 +502,58 @@ export type MeInfo = {
   onboarding_completed: boolean;
   current_period_end: string | null;
 };
+
+// ─── Workflow Builder ──────────────────────────────────────────────────────
+
+export interface WorkflowNode {
+  id: string;
+  type: "agent" | "tool" | "trigger" | "output";
+  position: { x: number; y: number };
+  data: Record<string, unknown>;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+}
+
+export interface WorkflowDefinition {
+  id: number;
+  tenant_id: number;
+  name: string;
+  description?: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowRun {
+  id: number;
+  workflow_id: number;
+  status: "pending" | "running" | "completed" | "failed";
+  node_states: Record<string, string>;
+  started_at?: string;
+  completed_at?: string;
+  error?: string;
+}
+
+export interface WorkflowListResponse {
+  items: WorkflowDefinition[];
+  total: number;
+}
+
+export const listWorkflows = () => api.get<WorkflowListResponse>("/api/v1/workflows");
+export const getWorkflow = (id: number) => api.get<WorkflowDefinition>(`/api/v1/workflows/${id}`);
+export const createWorkflow = (data: Partial<WorkflowDefinition>) =>
+  api.post("/api/v1/workflows", data);
+export const updateWorkflow = (id: number, data: Partial<WorkflowDefinition>) =>
+  api.put(`/api/v1/workflows/${id}`, data);
+export const deleteWorkflow = (id: number) => api.del(`/api/v1/workflows/${id}`);
+export const runWorkflow = (id: number) => api.post(`/api/v1/workflows/${id}/run`);
+export const getWorkflowStatus = (id: number) =>
+  api.get<WorkflowRun>(`/api/v1/workflows/${id}/runs/latest`);

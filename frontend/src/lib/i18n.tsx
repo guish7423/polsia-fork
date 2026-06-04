@@ -235,6 +235,21 @@ const ZH: Record<string, string> = {
   "knowledge.snippet": "片段",
   "knowledge.score": "相关度",
   "nav.knowledge": "知识库",
+
+  // ── Workflow Builder ──
+  "workflow.title": "工作流",
+  "workflow.create": "创建工作流",
+  "workflow.edit": "编辑工作流",
+  "workflow.run": "运行",
+  "workflow.status": "状态",
+  "workflow.delete": "删除工作流",
+  "workflow.nodes.agent": "AI 代理",
+  "workflow.nodes.tool": "工具",
+  "workflow.nodes.trigger": "触发器",
+  "workflow.nodes.output": "输出",
+  "workflow.runs.title": "运行记录",
+  "workflow.runs.status": "运行状态",
+  "workflow.runs.duration": "运行时长",
 };
 
 const EN: Record<string, string> = {
@@ -469,6 +484,21 @@ const EN: Record<string, string> = {
   "knowledge.snippet": "Snippet",
   "knowledge.score": "Relevance",
   "nav.knowledge": "Knowledge",
+
+  // ── Workflow Builder ──
+  "workflow.title": "Workflows",
+  "workflow.create": "Create Workflow",
+  "workflow.edit": "Edit Workflow",
+  "workflow.run": "Run",
+  "workflow.status": "Status",
+  "workflow.delete": "Delete Workflow",
+  "workflow.nodes.agent": "AI Agent",
+  "workflow.nodes.tool": "Tool",
+  "workflow.nodes.trigger": "Trigger",
+  "workflow.nodes.output": "Output",
+  "workflow.runs.title": "Run History",
+  "workflow.runs.status": "Run Status",
+  "workflow.runs.duration": "Duration",
 };
 
 const LOCALES: Record<Locale, Record<string, string>> = { en: EN, zh: ZH };
