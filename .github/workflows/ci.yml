@@ -27,10 +27,17 @@ jobs:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --frozen
-      - name: Run unit tests
-        run: uv run pytest tests/unit/ -v --tb=short
+      - name: Run unit tests + coverage
+        run: uv run pytest tests/unit/ -v --tb=short --cov=app --cov-report=xml --cov-report=term-missing
         env:
           LLM_API_MOCK: "true"
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push'
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage.xml
+          flags: backend
+          fail_ci_if_error: false
 
   test-frontend:
     runs-on: ubuntu-latest
@@ -45,3 +52,25 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test -- --watchAll=false --passWithNoTests
+
+  docker-build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: crosswave/backend:ci
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: false
+          tags: crosswave/frontend:ci
