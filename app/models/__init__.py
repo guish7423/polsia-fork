@@ -20,7 +20,8 @@ from app.models.mcp_tool_call import MCPToolCall
 from app.models.agent_message import AgentMessage
 from app.models.plugin import Plugin
 from app.models.sandbox_execution import SandboxExecution
-from app.models.audit_entry import AuditEntry
+from app.models.optimization_log import OptimizationLog
+from app.models.agent_gen_config import AgentGenConfig
 
 __all__ = [
     "Base",
@@ -49,5 +50,6 @@ __all__ = [
     "AgentMessage",
     "Plugin",
     "SandboxExecution",
-    "AuditEntry",
+    "OptimizationLog",
+    "AgentGenConfig",
 ]

@@ -84,6 +84,8 @@ async def api_client(async_db_session, mock_redis):
     app.dependency_overrides[get_db] = lambda: async_db_session
     # Override API key check
     settings.api_key = "test-key"
+    # Disable quota enforcement in unit tests (no tenant records exist)
+    settings.quota_enabled = False
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

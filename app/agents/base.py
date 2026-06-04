@@ -133,6 +133,45 @@ class BasePolsiaAgent:
     """Explicit task category for model routing.  ``None`` → inferred from
     :attr:`agent_type` via ``AGENT_CATEGORY`` mapping."""
 
+    _gen_config_overrides: dict | None = None
+    """Cached generation config overrides, populated lazily by
+    :meth:`_load_gen_config_overrides` and read by :meth:`_get_gen_config_overrides`."""
+
+    def _get_gen_config_overrides(self) -> dict:
+        """Return cached generation config overrides — or ``{}`` when disabled.
+
+        The cache is populated lazily by :meth:`call_llm` (which has access
+        to a ``db_session``).  Config changes are rare and agents restart
+        periodically, so no TTL invalidation is needed.
+        """
+        if not settings.config_tuner_enabled:
+            return {}
+        if self._gen_config_overrides is not None:
+            return self._gen_config_overrides
+        return {}
+
+    async def _load_gen_config_overrides(
+        self, db_session: AsyncSession,
+    ) -> dict:
+        """Fetch and cache overrides from :class:`ConfigTunerService`.
+
+        Fail-open: returns ``{}`` on any error so the agent never blocks.
+        """
+        if not settings.config_tuner_enabled:
+            self._gen_config_overrides = {}
+            return {}
+        try:
+            from app.services.config_tuner import ConfigTunerService
+
+            config = await ConfigTunerService.get_effective_config(
+                db_session, tenant_id=1, agent_type=self.agent_type,
+            )
+            self._gen_config_overrides = config
+            return config
+        except Exception:
+            self._gen_config_overrides = {}
+            return {}
+
     async def call_llm(
         self,
         prompt: str,
@@ -180,6 +219,19 @@ class BasePolsiaAgent:
                     kwargs["json"]["messages"].append(
                         {"role": "user", "content": prompt}
                     )
+
+                    # ▼ merge gen_config overrides from ConfigTunerService
+                    if db_session is not None:
+                        overrides = await self._load_gen_config_overrides(db_session)
+                        if overrides:
+                            kwargs["json"]["temperature"] = overrides.get(
+                                "temperature",
+                                kwargs["json"].get("temperature", 0.7),
+                            )
+                            if "max_tokens" in overrides:
+                                kwargs["json"]["max_tokens"] = overrides["max_tokens"]
+                            if "top_p" in overrides:
+                                kwargs["json"]["top_p"] = overrides["top_p"]
 
                     import time as _time
                     _start = _time.monotonic()
@@ -294,11 +346,18 @@ class BasePolsiaAgent:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
+        # ▼ read cached gen_config overrides (populated by call_llm when db_session was available)
+        _stream_overrides = self._get_gen_config_overrides()
+        _stream_temperature = _stream_overrides.get("temperature", 0.7)
+        _stream_max_tokens = _stream_overrides.get("max_tokens")
+
         for instance in instances:
             try:
                 async for chunk in instance.chat_stream(
                     messages=messages,
                     json_mode=json_mode,
+                    temperature=_stream_temperature,
+                    max_tokens=_stream_max_tokens,
                 ):
                     yield chunk
                 # Streaming succeeded — don't fall through

@@ -80,7 +80,11 @@ class Settings(BaseSettings):
     the middleware skips all checks and passes requests through."""
     """Master switch for quota enforcement.  When ``False`` all checks pass."""
 
-    # Sandbox runtime (Docker container isolation)
+    # Config tuner (auto-optimization / Phase D)
+    config_tuner_enabled: bool = True
+    """Master switch for generation config auto-tuning. When ``False``,
+    ``ConfigTunerService.auto_tune`` returns ``None`` without applying changes."""
+
     sandbox_enabled: bool = False
     """When ``True``, route agent execution through Docker sandbox containers."""
 

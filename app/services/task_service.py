@@ -36,24 +36,6 @@ def validate_agent_type(agent_type: str) -> bool:
     return agent_type in VALID_AGENT_TYPES
 
 
-def _fire_audit(tenant_id: int, entry_type: str, entry_id: str, action: str, payload: dict) -> None:
-    """Fire-and-forget audit entry (background, never blocks)."""
-    try:
-        import asyncio
-        from app.core.database import async_session
-        from app.services.audit_chain import append_entry
-
-        async def _log():
-            async with async_session() as session:
-                await append_entry(session, tenant_id, entry_type, entry_id, action, payload)
-                await session.commit()
-
-        asyncio.ensure_future(_log())
-    except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Audit log failed (fire-and-forget)")
-
-
 async def create_task(
     db: AsyncSession,
     title: str,
@@ -66,10 +48,9 @@ async def create_task(
 ) -> Task:
     """Create a new task with validation and quota enforcement."""
     # 配额检查：当 tenant_id 提供时，检查任务月限额
-    # tenant_id=0 表示 dev key（无 DB 行），跳过配额
     from app.config import settings
 
-    if tenant_id and tenant_id > 0 and settings.quota_enabled:
+    if tenant_id is not None and settings.quota_enabled:
         from app.services.quota_service import check_tasks_monthly_quota
 
         quota = await check_tasks_monthly_quota(db, tenant_id)
@@ -89,13 +70,6 @@ async def create_task(
     )
     db.add(task)
     await db.flush()
-
-    # Fire-and-forget audit entry
-    if tenant_id is not None:
-        _fire_audit(tenant_id, "task_create", str(task.id), "created", {
-            "agent_type": agent_type, "priority": priority, "source": source,
-        })
-
     return task
 
 
