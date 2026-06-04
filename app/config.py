@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     # ChromaDB
     chroma_db_path: str = "./chroma_db"
 
+    # RAG / Embedding
+    rag_enabled: bool = True
+    """Master switch for RAG knowledge context injection in agent calls."""
+    embedding_model: str = "text-embedding-3-small"
+    """OpenAI-compatible embedding model name."""
+    embedding_dimension: int = 1536
+    """Output dimension of the embedding model (1536 for text-embedding-3-small)."""
+    chunk_size: int = 500
+    """Target chunk size in tokens for document chunking."""
+    chunk_overlap: int = 50
+    """Overlap between adjacent chunks in tokens."""
+
     # Stripe
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""

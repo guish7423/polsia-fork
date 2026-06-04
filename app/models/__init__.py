@@ -24,6 +24,7 @@ from app.models.optimization_log import OptimizationLog
 from app.models.agent_gen_config import AgentGenConfig
 from app.models.alert import Alert
 from app.models.notification import Notification
+from app.models.knowledge_document import KnowledgeDocument
 
 __all__ = [
     "Base",
@@ -56,4 +57,5 @@ __all__ = [
     "AgentGenConfig",
     "Alert",
     "Notification",
+    "KnowledgeDocument",
 ]
