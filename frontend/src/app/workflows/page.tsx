@@ -11,6 +11,7 @@ import {
   type WorkflowDefinition,
 } from "@/lib/api";
 import { PageTitle } from "@/components/PageTitle";
+import { DeleteConfirmModal } from "@/components/workflow/DeleteConfirmModal";
 import {
   Loader2,
   Plus,
@@ -37,6 +38,10 @@ export default function WorkflowsPage() {
   // Action states
   const [runningId, setRunningId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   const [runFeedback, setRunFeedback] = useState<{
     id: number;
     message: string;
@@ -104,12 +109,14 @@ export default function WorkflowsPage() {
     }
   }
 
-  async function handleDelete(id: number) {
-    if (!window.confirm("Delete this workflow?")) return;
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    const { id } = deleteTarget;
     setDeletingId(id);
     try {
       await deleteWorkflow(id);
       setWorkflows((prev) => prev.filter((w) => w.id !== id));
+      setDeleteTarget(null);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : `Failed to delete workflow #${id}`,
@@ -290,7 +297,7 @@ export default function WorkflowsPage() {
                   Run
                 </button>
                 <button
-                  onClick={() => handleDelete(wf.id)}
+                  onClick={() => setDeleteTarget({ id: wf.id, name: wf.name })}
                   disabled={deletingId === wf.id}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-xs rounded transition-colors ml-auto"
                 >
@@ -305,6 +312,16 @@ export default function WorkflowsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <DeleteConfirmModal
+          workflowName={deleteTarget.name}
+          deleting={deletingId === deleteTarget.id}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );

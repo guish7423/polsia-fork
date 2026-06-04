@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   api,
@@ -8,9 +8,12 @@ import {
   runWorkflow,
   type WorkflowDefinition,
   type WorkflowRun,
+  type WorkflowNode,
+  type WorkflowEdge,
 } from "@/lib/api";
 import { PageTitle } from "@/components/PageTitle";
 import { WorkflowCanvas } from "@/components/workflow/WorkflowCanvas";
+import { NodeConfigPanel } from "@/components/workflow/NodeConfigPanel";
 import {
   Loader2,
   Play,
@@ -23,6 +26,8 @@ import {
   Clock,
   XCircle,
   RefreshCw,
+  Eye,
+  Pencil,
 } from "lucide-react";
 
 const STATUS_ICON: Record<string, typeof Clock> = {
@@ -47,6 +52,14 @@ export default function WorkflowDetailPage() {
   const [workflow, setWorkflow] = useState<WorkflowDefinition | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Edit mode
+  const [editing, setEditing] = useState(false);
+  const [editNodes, setEditNodes] = useState<WorkflowNode[]>([]);
+  const [editEdges, setEditEdges] = useState<WorkflowEdge[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const hasUnsavedRef = useRef(false);
 
   // Run state
   const [running, setRunning] = useState(false);
@@ -94,6 +107,56 @@ export default function WorkflowDetailPage() {
     fetchWorkflow();
     fetchRuns();
   }, [fetchWorkflow, fetchRuns]);
+
+  function handleEditToggle() {
+    if (editing) {
+      // Switching to view mode — discard unsaved changes
+      setEditing(false);
+      setSelectedNodeId(null);
+      hasUnsavedRef.current = false;
+    } else {
+      // Switching to edit mode — snapshot current nodes/edges
+      setEditNodes(workflow?.nodes ?? []);
+      setEditEdges(workflow?.edges ?? []);
+      setEditing(true);
+    }
+  }
+
+  async function handleSave(nodes: WorkflowNode[], edges: WorkflowEdge[]) {
+    setSaving(true);
+    try {
+      await api.put(`/workflows/${id}`, { nodes, edges });
+      // Refresh workflow data
+      const data = await getWorkflow(id);
+      setWorkflow(data);
+      setEditing(false);
+      setSelectedNodeId(null);
+      hasUnsavedRef.current = false;
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Failed to save workflow",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleCanvasSave(nodes: WorkflowNode[], edges: WorkflowEdge[]) {
+    setEditNodes(nodes);
+    setEditEdges(edges);
+    hasUnsavedRef.current = true;
+  }
+
+  // ── Beforeunload warning for unsaved changes ────────────────────────────
+
+  useEffect(() => {
+    if (!editing || !hasUnsavedRef.current) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [editing]);
 
   async function handleRun() {
     setRunning(true);
@@ -189,18 +252,32 @@ export default function WorkflowDetailPage() {
             </span>
           </div>
         </div>
-        <button
-          onClick={handleRun}
-          disabled={running}
-          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors shrink-0"
-        >
-          {running ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Play size={16} />
-          )}
-          {running ? "Running…" : "Run Workflow"}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Edit/View toggle */}
+          <button
+            onClick={handleEditToggle}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+              editing
+                ? "bg-indigo-600 text-white hover:bg-indigo-500"
+                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+            }`}
+          >
+            {editing ? <Eye size={14} /> : <Pencil size={14} />}
+            {editing ? "View" : "Edit"}
+          </button>
+          <button
+            onClick={handleRun}
+            disabled={running || editing}
+            className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            {running ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Play size={16} />
+            )}
+            {running ? "Running…" : "Run Workflow"}
+          </button>
+        </div>
       </div>
 
       {/* Run result banner */}
@@ -230,26 +307,76 @@ export default function WorkflowDetailPage() {
         </div>
       )}
 
-      {/* Workflow Canvas (read-only) */}
-      <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
-        <div className="p-3 border-b border-gray-700 bg-gray-800/50">
-          <h3 className="text-sm font-medium text-gray-300">
-            Workflow Canvas
-          </h3>
+      {/* Workflow Canvas + Node Config */}
+      <div className="flex gap-4">
+        <div className="flex-1 bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
+          <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-300">
+              Workflow Canvas
+            </h3>
+            {editing && (
+              <span className="text-xs text-indigo-400 font-medium bg-indigo-900/30 px-2 py-0.5 rounded">
+                Editing mode
+              </span>
+            )}
+          </div>
+          <div className="h-[450px]">
+            {(editing ? editNodes : workflow.nodes).length > 0 || editing ? (
+              <WorkflowCanvas
+                key={editing ? "edit" : "view"}
+                initialNodes={editing ? editNodes : workflow.nodes}
+                initialEdges={editing ? editEdges : workflow.edges}
+                readOnly={!editing}
+                onSave={editing ? handleCanvasSave : undefined}
+                onNodeSelect={setSelectedNodeId}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                No nodes in this workflow yet
+              </div>
+            )}
+          </div>
         </div>
-        <div className="h-[400px]">
-          {workflow.nodes.length > 0 ? (
-            <WorkflowCanvas
-              initialNodes={workflow.nodes}
-              initialEdges={workflow.edges}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-              No nodes in this workflow yet
-            </div>
-          )}
-        </div>
+
+        {/* Node config panel — visible when a node is selected */}
+        {selectedNodeId && editing && (
+          <NodeConfigPanel
+            nodeId={selectedNodeId}
+            nodes={editNodes}
+            edges={editEdges}
+            onUpdateNode={(id, data) => {
+              setEditNodes((prev) =>
+                prev.map((n) =>
+                  n.id === id ? { ...n, data: { ...n.data, ...data } } : n,
+                ),
+              );
+            }}
+            onClose={() => setSelectedNodeId(null)}
+          />
+        )}
       </div>
+
+      {/* Save bar — visible in edit mode */}
+      {editing && (
+        <div className="flex items-center justify-end gap-3 px-4 py-3 bg-gray-900 rounded-lg border border-gray-700">
+          <span className="text-xs text-gray-500">
+            {hasUnsavedRef.current
+              ? "Unsaved changes"
+              : "No unsaved changes"}
+          </span>
+          <button
+            onClick={() => handleSave(editNodes, editEdges)}
+            disabled={saving || !hasUnsavedRef.current}
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-medium rounded-md transition-colors"
+          >
+            {saving ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              "Save Changes"
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Runs section */}
       <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">

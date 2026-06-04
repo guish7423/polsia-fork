@@ -99,11 +99,15 @@ export interface WorkflowCanvasProps {
   initialEdges?: WorkflowEdge[];
   /** Called when the user clicks save. Returns serialisable data for the API. */
   onSave?: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void;
+  /** When true, canvas is read-only (no edits, no toolbar, no save). */
+  readOnly?: boolean;
+  /** Called when a node is selected/deselected. Returns the node id or null. */
+  onNodeSelect?: (nodeId: string | null) => void;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function WorkflowCanvas({ initialNodes, initialEdges, onSave }: WorkflowCanvasProps) {
+export function WorkflowCanvas({ initialNodes, initialEdges, onSave, readOnly = false, onNodeSelect }: WorkflowCanvasProps) {
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
   const [isInitialised, setIsInitialised] = useState(false);
 
@@ -166,15 +170,28 @@ export function WorkflowCanvas({ initialNodes, initialEdges, onSave }: WorkflowC
     onSave(wfNodes, wfEdges);
   }, [nodes, edges, onSave]);
 
+  // ── Node click handler ──────────────────────────────────────────────────
+
+  const onNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      onNodeSelect?.(node.id);
+    },
+    [onNodeSelect],
+  );
+
+  const onPaneClick = useCallback(() => {
+    onNodeSelect?.(null);
+  }, [onNodeSelect]);
+
   // ── Render ──────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <Toolbar />
+      {/* Toolbar — hidden in read-only mode */}
+      {!readOnly && <Toolbar />}
 
-      {/* Save button */}
-      {onSave && (
+      {/* Save button — hidden in read-only mode */}
+      {!readOnly && onSave && (
         <div className="flex items-center gap-2 px-4 py-1.5 bg-gray-900/40 border-b border-gray-700/30">
           <button
             onClick={handleSave}
@@ -193,14 +210,18 @@ export function WorkflowCanvas({ initialNodes, initialEdges, onSave }: WorkflowC
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onDragOver={onDragOver}
-          onDrop={onDrop}
+          onDragOver={!readOnly ? onDragOver : undefined}
+          onDrop={!readOnly ? onDrop : undefined}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
           onInit={useCallback<OnInit>((instance) => {
             rfInstanceRef.current = instance;
             setIsInitialised(true);
           }, [])}
           nodeTypes={nodeTypes}
-          deleteKeyCode="Delete"
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
+          deleteKeyCode={!readOnly ? "Delete" : null}
           fitView
           colorMode="dark"
           className="bg-gray-950"

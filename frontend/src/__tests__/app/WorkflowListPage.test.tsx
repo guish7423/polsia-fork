@@ -142,10 +142,7 @@ describe("WorkflowsPage", () => {
     });
   });
 
-  it("shows confirm dialog before deleting a workflow", async () => {
-    // Mock window.confirm
-    const originalConfirm = window.confirm;
-    window.confirm = jest.fn().mockReturnValue(true);
+  it("shows confirm modal before deleting a workflow", async () => {
     mockDeleteWorkflow.mockResolvedValue(undefined);
 
     render(<WorkflowsPage />);
@@ -158,17 +155,20 @@ describe("WorkflowsPage", () => {
     const deleteButtons = screen.getAllByText("Delete");
     await userEvent.click(deleteButtons[0]);
 
+    // Modal should appear with title "Delete Workflow"
     await waitFor(() => {
-      expect(window.confirm).toHaveBeenCalledWith(
-        "Delete this workflow?",
-      );
+      expect(
+        screen.getByText("Delete Workflow"),
+      ).toBeInTheDocument();
     });
+
+    // Click the modal's Delete button (last one — after card buttons)
+    const allDeleteBtns = screen.getAllByRole("button", { name: "Delete" });
+    await userEvent.click(allDeleteBtns[allDeleteBtns.length - 1]);
 
     await waitFor(() => {
       expect(mockDeleteWorkflow).toHaveBeenCalledWith(1);
     });
-
-    window.confirm = originalConfirm;
   });
 
   it("renders error state when API fails", async () => {
