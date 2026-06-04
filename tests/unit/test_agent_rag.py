@@ -255,14 +255,16 @@ async def test_rag_stream_injects_context(mocker):
     # Mock fallback chain to return a streaming instance
     from app.core.model_instance import StreamChunk
 
-    fake_instance = MagicMock()
-    fake_instance.name = "test-instance"
+    captured_messages: list[list[dict]] = []
 
-    async def _mock_chat_stream(*args, **kwargs):
+    async def _mock_chat_stream(*, messages, **kwargs):
+        captured_messages.append(messages)
         yield StreamChunk(content="chunk1")
         yield StreamChunk(content=" chunk2")
         yield StreamChunk(finish_reason="stop")
 
+    fake_instance = MagicMock()
+    fake_instance.name = "test-instance"
     fake_instance.chat_stream = _mock_chat_stream
 
     mocker.patch(
@@ -294,9 +296,8 @@ async def test_rag_stream_injects_context(mocker):
     assert "".join(chunks) == "chunk1 chunk2"
 
     # Verify RAG context was added to the messages
-    call_kwargs = fake_instance.chat_stream.call_args
-    assert call_kwargs is not None
-    messages = call_kwargs[1]["messages"]
+    assert len(captured_messages) > 0
+    messages = captured_messages[0]
     user_msg = messages[-1]
     assert user_msg["role"] == "user"
     assert "test stream prompt" in user_msg["content"]

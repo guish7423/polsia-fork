@@ -193,19 +193,27 @@ class BasePolsiaAgent:
             tenant_id: Scopes the search to a specific tenant.
             query: The prompt text used as the similarity search query.
             db_session: Optional DB session.  When ``None`` the method
-                short-circuits and returns ``""``.
+                lazy-imports a session from the global engine.
 
         Returns:
             A markdown-formatted context string, or ``""`` when no results
             are available or on any error.
         """
-        if db_session is None:
-            return ""
+        _session: AsyncSession | None = db_session
+        _owns_session = False
+        if _session is None:
+            try:
+                from app.core.database import async_session as _async_session_factory
+
+                _session = _async_session_factory()
+                _owns_session = True
+            except Exception:
+                return ""
         try:
             from app.services.memory_service import semantic_search_memory
 
             results = await semantic_search_memory(
-                db_session,
+                _session,
                 query=query,
                 tenant_id=tenant_id,
                 n_results=5,
@@ -222,6 +230,9 @@ class BasePolsiaAgent:
             return "\n".join(lines)
         except Exception:
             return ""
+        finally:
+            if _owns_session and _session is not None:
+                await _session.close()
 
     # ── Agent Step Streaming (SSE) ────────────────────────────────────────
 
