@@ -106,6 +106,15 @@ from app.api.v1.notifications import router as notifications_router
 from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.errors import register_error_handlers
 
+# Prometheus /metrics endpoint
+from app.core.metrics import generate_latest, metrics_enabled
+if metrics_enabled():
+    from fastapi.responses import PlainTextResponse
+
+    @app.get("/metrics")
+    async def metrics_endpoint():
+        return PlainTextResponse(generate_latest(), media_type="text/plain; charset=utf-8")
+
 # Register structured error handlers (after all routers are registered)
 register_error_handlers(app)
 
@@ -118,6 +127,11 @@ from app.core.ratelimit import RateLimitMiddleware
 from app.core.tenant_middleware import TenantContextMiddleware
 
 app.add_middleware(RequestIDMiddleware)
+
+# Prometheus metrics — observes HTTP request count + latency
+from app.core.metrics_middleware import PrometheusMetricsMiddleware
+app.add_middleware(PrometheusMetricsMiddleware)
+
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(TenantContextMiddleware)

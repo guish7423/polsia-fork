@@ -285,6 +285,13 @@ def run_agent(self, agent_type: str, context: dict | None = None,
                     except Exception:
                         pass
 
+                    # ── Prometheus interrupt metric ────────────────────────
+                    try:
+                        from app.core.metrics import agent_runs_total
+                        agent_runs_total.labels(agent_type=agent_type, status="interrupt").inc()
+                    except Exception:
+                        pass
+
                     return result
 
                 # 4️⃣ Update run on success
@@ -325,6 +332,14 @@ def run_agent(self, agent_type: str, context: dict | None = None,
                             "status": "completed",
                         },
                     )
+                except Exception:
+                    pass
+
+                # ── Prometheus agent run metric ─────────────────────────────
+                try:
+                    from app.core.metrics import agent_runs_total, agent_run_duration_seconds
+                    agent_runs_total.labels(agent_type=agent_type, status="completed").inc()
+                    agent_run_duration_seconds.labels(agent_type=agent_type).observe(run.duration_secs or 0)
                 except Exception:
                     pass
 
@@ -385,6 +400,13 @@ def run_agent(self, agent_type: str, context: dict | None = None,
                         )
                     except Exception:
                         pass
+
+                # ── Prometheus agent error metric ──────────────────────────
+                try:
+                    from app.core.metrics import agent_runs_total
+                    agent_runs_total.labels(agent_type=agent_type, status="error").inc()
+                except Exception:
+                    pass
 
                 raise  # Let Celery retry handle this
 

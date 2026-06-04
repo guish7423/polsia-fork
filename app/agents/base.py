@@ -347,6 +347,16 @@ class BasePolsiaAgent:
                     _in = usage.get("prompt_tokens", len(prompt) // 4)
                     _out = usage.get("completion_tokens", len(content) // 4)
 
+                    # Prometheus LLM call metrics
+                    try:
+                        from app.core.metrics import llm_calls_total, llm_call_duration_seconds, llm_tokens_total
+                        llm_calls_total.labels(provider="openai", model=profile.model, success="true").inc()
+                        llm_call_duration_seconds.labels(provider="openai", model=profile.model).observe(_elapsed_ms / 1000.0)
+                        llm_tokens_total.labels(provider="openai", model=profile.model, direction="input").inc(_in)
+                        llm_tokens_total.labels(provider="openai", model=profile.model, direction="output").inc(_out)
+                    except Exception:
+                        pass
+
                     # Log usage when db_session is available and tracking is enabled
                     if app_settings.model_usage_log_enabled and db_session is not None:
                         from app.core.model_instance import estimate_cost
@@ -380,7 +390,13 @@ class BasePolsiaAgent:
                         await asyncio.sleep(2 ** attempt)
                     continue
 
-        # All profiles exhausted — log failure when applicable
+        # All profiles exhausted — record failure metrics
+        try:
+            from app.core.metrics import llm_calls_total, llm_tokens_total
+            llm_calls_total.labels(provider="unknown", model="all_exhausted", success="false").inc()
+        except Exception:
+            pass
+
         if app_settings.model_usage_log_enabled and db_session is not None:
             try:
                 await record_model_call(
