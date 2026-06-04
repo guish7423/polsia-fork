@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart2,
+  BookOpen,
   Bot,
   BriefcaseBusiness,
   CalendarClock,
@@ -48,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
     labelKey: "nav.group.system",
     items: [
       { href: "/quota", labelKey: "nav.quota", icon: Gauge },
+      { href: "/knowledge", labelKey: "nav.knowledge", icon: BookOpen },
       { href: "/mcp", labelKey: "nav.mcp", icon: Plug },
       { href: "/plugins", labelKey: "nav.plugins", icon: Puzzle },
       { href: "/audit", labelKey: "nav.audit", icon: ScrollText },

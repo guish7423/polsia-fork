@@ -172,6 +172,57 @@ class BasePolsiaAgent:
             self._gen_config_overrides = {}
             return {}
 
+    # ── RAG Context Injection ─────────────────────────────────────────────
+
+    async def _build_rag_context(
+        self,
+        tenant_id: int,
+        query: str,
+        db_session: AsyncSession | None = None,
+    ) -> str:
+        """Build a RAG context block from semantic memory search results.
+
+        Queries the knowledge base via ``semantic_search_memory()`` and
+        formats matching entries as a markdown ``<knowledge_context>`` block
+        that gets prepended to the LLM prompt.
+
+        Fail-open: returns ``""`` on any exception so agent execution is
+        never blocked by a RAG service failure.
+
+        Args:
+            tenant_id: Scopes the search to a specific tenant.
+            query: The prompt text used as the similarity search query.
+            db_session: Optional DB session.  When ``None`` the method
+                short-circuits and returns ``""``.
+
+        Returns:
+            A markdown-formatted context string, or ``""`` when no results
+            are available or on any error.
+        """
+        if db_session is None:
+            return ""
+        try:
+            from app.services.memory_service import semantic_search_memory
+
+            results = await semantic_search_memory(
+                db_session,
+                query=query,
+                tenant_id=tenant_id,
+                n_results=5,
+            )
+            if not results:
+                return ""
+
+            lines = ["<knowledge_context>"]
+            for i, entry in enumerate(results, 1):
+                source = entry.source or "unknown"
+                lines.append(f"  [{i}] ({source}) {entry.title}")
+                lines.append(f"      {entry.content}")
+            lines.append("</knowledge_context>")
+            return "\n".join(lines)
+        except Exception:
+            return ""
+
     # ── Agent Step Streaming (SSE) ────────────────────────────────────────
 
     def publish_step(self, step_type: str, content: str, timestamp: str | None = None) -> None:
@@ -201,6 +252,7 @@ class BasePolsiaAgent:
         max_retries: int = 2,
         task_category: TaskCategory | None = None,
         db_session=None,
+        tenant_id: int | None = None,
     ) -> dict:
         """Call the best available LLM for this agent's task category.
 
@@ -254,6 +306,13 @@ class BasePolsiaAgent:
                                 kwargs["json"]["max_tokens"] = overrides["max_tokens"]
                             if "top_p" in overrides:
                                 kwargs["json"]["top_p"] = overrides["top_p"]
+
+                    # ▼ inject RAG context from knowledge base
+                    if tenant_id is not None and settings.rag_enabled:
+                        rag_ctx = await self._build_rag_context(tenant_id, prompt, db_session)
+                        if rag_ctx:
+                            existing = kwargs["json"]["messages"][-1]["content"]
+                            kwargs["json"]["messages"][-1]["content"] = existing + "\n\n" + rag_ctx
 
                     self.publish_step("llm_start", f"Calling {profile.model}...")
                     import time as _time
@@ -335,6 +394,7 @@ class BasePolsiaAgent:
         system_prompt: str | None = None,
         json_mode: bool = False,
         task_category: TaskCategory | None = None,
+        tenant_id: int | None = None,
     ) -> AsyncIterator[StreamChunk]:
         """Stream a response from the best available LLM for this agent.
 
@@ -369,6 +429,12 @@ class BasePolsiaAgent:
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
+
+        # ▼ inject RAG context from knowledge base
+        if tenant_id is not None and settings.rag_enabled:
+            rag_ctx = await self._build_rag_context(tenant_id, prompt, None)
+            if rag_ctx:
+                messages[-1]["content"] = prompt + "\n\n" + rag_ctx
 
         # ▼ read cached gen_config overrides (populated by call_llm when db_session was available)
         _stream_overrides = self._get_gen_config_overrides()

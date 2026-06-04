@@ -358,6 +358,76 @@ export async function searchApi(
   return apiFetch<SearchResponse>(`/search?${params}`);
 }
 
+// ─── Knowledge Base ─────────────────────────────────────────────────────────
+
+export type KnowledgeDocument = {
+  id: number;
+  filename: string;
+  file_type: string;
+  status: "uploading" | "ready" | "error";
+  chunk_count: number;
+  error_message: string | null;
+  created_at: string;
+};
+
+export type KnowledgeListResponse = {
+  documents: KnowledgeDocument[];
+  total: number;
+};
+
+export type KnowledgeSearchResult = {
+  id: number;
+  filename: string;
+  file_type: string;
+  snippet: string;
+  score: number;
+  chunk_index: number;
+};
+
+export async function uploadKnowledgeDocument(file: File): Promise<KnowledgeDocument> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+  const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${API_URL}/api/v1/knowledge/upload`, {
+    method: "POST",
+    headers: { "X-API-Key": API_KEY },
+    body: formData,
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new Error(`API ${res.status}: ${detail}`);
+  }
+  return res.json() as Promise<KnowledgeDocument>;
+}
+
+export async function listKnowledgeDocuments(): Promise<KnowledgeListResponse> {
+  return api.get<KnowledgeListResponse>("/knowledge/documents");
+}
+
+export async function deleteKnowledgeDocument(id: number): Promise<void> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8001";
+  const API_KEY = process.env.NEXT_PUBLIC_API_KEY ?? "";
+  const res = await fetch(`${API_URL}/api/v1/knowledge/documents/${id}`, {
+    method: "DELETE",
+    headers: { "X-API-Key": API_KEY },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => res.statusText);
+    throw new Error(`API ${res.status}: ${detail}`);
+  }
+}
+
+export async function semanticSearchKnowledge(
+  q: string,
+  limit = 20,
+): Promise<KnowledgeSearchResult[]> {
+  const params = new URLSearchParams({ q, limit: String(limit) });
+  return api.get<KnowledgeSearchResult[]>(
+    `/knowledge/semantic-search?${params}`,
+  );
+}
+
 export type Task = {
   id: number;
   title: string;
