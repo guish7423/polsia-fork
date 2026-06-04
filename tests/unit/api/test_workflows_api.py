@@ -2,8 +2,6 @@
 
 import pytest
 
-from app.models.workflow_definition import WorkflowDefinition
-
 
 # ─── Shared Helpers ──────────────────────────────────────────────────────────
 
@@ -204,7 +202,8 @@ async def test_delete_workflow_not_found(api_client, auth_headers):
 @pytest.mark.asyncio
 async def test_run_workflow_success(api_client, auth_headers, mocker):
     """POST /api/v1/workflows/{id}/run creates a run and executes it."""
-    async def _mock_execute(workflow, run, db, tenant_id):
+    async def _mock_execute(self, workflow, run, db, tenant_id):
+        """Simulate engine execution that updates run status."""
         run.status = "completed"
         run.node_states = {"n1": {"status": "success", "output": None, "error": None,
                                    "started_at": None, "completed_at": None}}
@@ -226,7 +225,7 @@ async def test_run_workflow_success(api_client, auth_headers, mocker):
     data = resp.json()
     assert data["run_id"] is not None
     assert data["workflow_id"] == wf_id
-    assert data["status"] == "completed"
+    assert data["status"] == "completed", f"Expected completed, got {data}"
 
 
 @pytest.mark.asyncio
@@ -263,9 +262,8 @@ async def test_run_workflow_engine_error(api_client, auth_headers, mocker):
 @pytest.mark.asyncio
 async def test_list_runs(api_client, auth_headers, mocker):
     """GET /api/v1/workflows/{id}/runs lists runs for a workflow."""
-    async def _mock_execute(workflow, run, db, tenant_id):
+    async def _mock_execute(self, workflow, run, db, tenant_id):
         run.status = "completed"
-        run.node_states = {}
         await db.flush()
         return {"status": "completed", "error": None, "node_states": {}}
 
@@ -311,7 +309,7 @@ async def test_list_runs_empty(api_client, auth_headers):
 @pytest.mark.asyncio
 async def test_get_run_status(api_client, auth_headers, mocker):
     """GET /api/v1/workflows/runs/{run_id} returns run details."""
-    async def _mock_execute(workflow, run, db, tenant_id):
+    async def _mock_execute(self, workflow, run, db, tenant_id):
         """Simulate engine execution that updates run status."""
         run.status = "completed"
         run.node_states = {"n1": {"status": "success"}}
