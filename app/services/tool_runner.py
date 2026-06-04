@@ -31,12 +31,21 @@ class ToolRunner:
     async def _build_tools_defs(
         tenant_id: int,
         db: AsyncSession,
+        allowed_names: list[str] | None = None,
     ) -> list[dict]:
-        """Load all active MCPTool entries for *tenant_id* and convert to
-        OpenAI-compatible function-definition format.
+        """Load (and optionally filter) active MCPTool entries for *tenant_id*
+        and convert to OpenAI-compatible function-definition format.
 
-        Returns a list of dicts in the format expected by the ``tools``
-        parameter of DeepSeek/OpenAI chat-completion requests.
+        Args:
+            tenant_id: Tenant to scope tool lookup.
+            db: Active database session.
+            allowed_names: Optional allowlist of tool names. When set, only
+                tools whose ``name`` appears in this list are included.
+                ``None`` or empty = all enabled tools are included.
+
+        Returns:
+            A list of function-definition dicts for the ``tools`` parameter
+            of DeepSeek/OpenAI chat-completion requests.
         """
         tools = await list_tools(db, tenant_id)
         return [
@@ -49,7 +58,7 @@ class ToolRunner:
                 },
             }
             for tool in tools
-            if tool.enabled
+            if tool.enabled and (allowed_names is None or tool.name in allowed_names)
         ]
 
     # ── Single Tool Execution ────────────────────────────────────────────

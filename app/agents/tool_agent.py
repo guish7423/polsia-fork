@@ -45,6 +45,7 @@ async def call_llm_with_tools(
     task_category_override: TaskCategory | None = None,
     db_session=None,
     tenant_id: int | None = None,
+    allowed_tool_names: list[str] | None = None,
 ) -> dict[str, Any]:
     """Multi-round LLM call with tool execution via ``ModelInstance.chat()``.
 
@@ -69,6 +70,11 @@ async def call_llm_with_tools(
     tenant_id : int | None
         Tenant scope for tool lookups.  When ``None``, no tools are loaded
         and the function acts like a plain ``call_llm()``.
+    allowed_tool_names : list[str] | None
+        Optional per-agent tool allowlist.  When set, only tools whose
+        ``name`` appears in this list are included in the function
+        definitions sent to the LLM.  ``None`` or empty = all enabled
+        tools are available.
 
     Returns
     -------
@@ -80,7 +86,10 @@ async def call_llm_with_tools(
     # ── Load tool definitions ─────────────────────────────────────────────
     tools: list[dict] = []
     if tenant_id is not None and db_session is not None:
-        tools = await ToolRunner._build_tools_defs(tenant_id, db_session)
+        tools = await ToolRunner._build_tools_defs(
+            tenant_id, db_session,
+            allowed_names=allowed_tool_names,
+        )
 
     # ── Select model instance ─────────────────────────────────────────────
     category = task_category_override or task_category or agent_category(agent_type)

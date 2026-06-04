@@ -76,6 +76,41 @@ class TestBuildToolsDefs:
         assert "enabled_tool" in names
         assert "disabled_tool" not in names
 
+    @pytest.mark.asyncio
+    async def test_allowlist_filters_tools(self, async_db_session):
+        """Passing allowed_names filters out tools not in the list."""
+        from app.services.mcp_gateway import register_tool as reg
+        from app.services.tool_runner import ToolRunner
+
+        await reg(async_db_session, tenant_id=1, name="tool_a",
+                  description="", endpoint="https://a.com",
+                  schema_json={}, enabled=True)
+        await reg(async_db_session, tenant_id=1, name="tool_b",
+                  description="", endpoint="https://b.com",
+                  schema_json={}, enabled=True)
+
+        defs = await ToolRunner._build_tools_defs(
+            tenant_id=1, db=async_db_session, allowed_names=["tool_a"],
+        )
+        names = [d["function"]["name"] for d in defs]
+        assert "tool_a" in names
+        assert "tool_b" not in names
+
+    @pytest.mark.asyncio
+    async def test_allowlist_empty_returns_none(self, async_db_session):
+        """Empty allowed_names means no tools are returned."""
+        from app.services.mcp_gateway import register_tool as reg
+        from app.services.tool_runner import ToolRunner
+
+        await reg(async_db_session, tenant_id=1, name="some_tool",
+                  description="", endpoint="https://s.com",
+                  schema_json={}, enabled=True)
+
+        defs = await ToolRunner._build_tools_defs(
+            tenant_id=1, db=async_db_session, allowed_names=[],
+        )
+        assert defs == []
+
 
 class TestExecuteSingleTool:
     """ToolRunner._execute_single_tool() — name→ID resolution + execution + formatting."""

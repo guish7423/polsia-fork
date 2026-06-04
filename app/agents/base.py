@@ -412,6 +412,7 @@ class BasePolsiaAgent:
         task_category: TaskCategory | None = None,
         db_session=None,
         tenant_id: int | None = None,
+        allowed_tool_names: list[str] | None = None,
     ) -> dict:
         """Multi-round LLM call with tool execution via :class:`ModelInstance.chat()`.
 
@@ -424,10 +425,22 @@ class BasePolsiaAgent:
             task_category: Override the agent's default task category.
             db_session: Database session for tool lookups.
             tenant_id: Tenant scope.  ``None`` → no tools loaded.
+            allowed_tool_names: Per-agent tool allowlist.  ``None`` = all
+                enabled tools, ``[]`` = none, ``["tool_a"]`` = only tool_a.
 
         Returns:
             Dict with ``"result"`` key, or parsed JSON on the final round.
         """
+        # Resolve per-agent allowed_tool_names from schema if not provided
+        if allowed_tool_names is None:
+            try:
+                from app.agents.schema import get_schema as _get_schema
+                schema = _get_schema(self.agent_type)
+                if schema and schema.allowed_tool_names:
+                    allowed_tool_names = schema.allowed_tool_names
+            except Exception:
+                pass
+
         from app.agents.tool_agent import call_llm_with_tools as _call
 
         return await _call(
@@ -439,6 +452,7 @@ class BasePolsiaAgent:
             task_category_override=task_category,
             db_session=db_session,
             tenant_id=tenant_id,
+            allowed_tool_names=allowed_tool_names,
         )
 
     async def call_llm_stream(
