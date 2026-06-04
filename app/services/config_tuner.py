@@ -9,11 +9,13 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.agent_gen_config import AgentGenConfig
+from app.models.agent_run import AgentRun
+from app.models.optimization_log import OptimizationLog
 
 
 class ConfigTunerService:
@@ -213,6 +215,140 @@ class ConfigTunerService:
             agent_type=agent_type,
             suggestion=suggestion,
         )
+
+    @staticmethod
+    async def check_and_rollback(
+        db: AsyncSession,
+        tenant_id: int,
+        agent_type: str,
+    ) -> bool:
+        """Compare AgentRun metrics before & after the current active config.
+
+        Requirements before evaluation:
+        1. Active config exists.
+        2. Not in cooldown (no rolled_back_at within 7 days).
+        3. At least 5 AgentRun records *after* the config change.
+
+        Thresholds (either triggers rollback):
+        - **success_rate**: absolute drop >10 percentage points.
+        - **avg_tokens**: relative increase >20 % from baseline.
+
+        When a threshold is exceeded it calls :meth:`revert_config` and logs
+        the event to ``OptimizationLog``.
+
+        Returns ``True`` when a rollback was performed.
+        """
+        # 1. Active config must exist
+        current = await ConfigTunerService.get_effective_config(
+            db, tenant_id, agent_type,
+        )
+        if not current:
+            return False
+
+        # 2. Cooldown check
+        if await ConfigTunerService._in_cooldown(db, tenant_id, agent_type):
+            return False
+
+        # 3. Baseline timestamp = when the current config was created
+        config_obj = await ConfigTunerService._get_by_version(
+            db, tenant_id, agent_type, current.get("version", 0),
+        )
+        if config_obj is None or config_obj.created_at is None:
+            return False
+        baseline_ts = config_obj.created_at
+
+        # 4. Post-change records (≥5 required)
+        post_stmt = (
+            select(AgentRun)
+            .where(
+                AgentRun.tenant_id == tenant_id,
+                AgentRun.agent_type == agent_type,
+                AgentRun.started_at >= baseline_ts,
+            )
+            .order_by(AgentRun.started_at.desc())
+        )
+        post_rows = (await db.execute(post_stmt)).scalars().all()
+        if len(post_rows) < 5:
+            return False
+
+        # 5. Pre-change baseline records
+        pre_stmt = (
+            select(AgentRun)
+            .where(
+                AgentRun.tenant_id == tenant_id,
+                AgentRun.agent_type == agent_type,
+                AgentRun.started_at < baseline_ts,
+            )
+            .order_by(AgentRun.started_at.desc())
+        )
+        pre_rows = (await db.execute(pre_stmt)).scalars().all()
+        if not pre_rows:
+            return False
+
+        # 6. Calculate metrics
+        pre_completed = sum(1 for r in pre_rows if r.status == "completed")
+        pre_total = len(pre_rows)
+        pre_sr = pre_completed / pre_total if pre_total > 0 else 0.0
+
+        post_completed = sum(1 for r in post_rows if r.status == "completed")
+        post_total = len(post_rows)
+        post_sr = post_completed / post_total if post_total > 0 else 0.0
+
+        pre_tok = [r.tokens_used for r in pre_rows if r.tokens_used is not None]
+        post_tok = [r.tokens_used for r in post_rows if r.tokens_used is not None]
+
+        pre_avg = sum(pre_tok) / len(pre_tok) if pre_tok else 0.0
+        post_avg = sum(post_tok) / len(post_tok) if post_tok else 0.0
+
+        # 7. Threshold evaluation
+        sr_drop = (pre_sr - post_sr) * 100  # percentage points
+        tok_pct = (
+            ((post_avg - pre_avg) / pre_avg * 100) if pre_avg > 0 else 0.0
+        )
+
+        if sr_drop > 10:
+            metric = "success_rate"
+            before = round(pre_sr, 4)
+            after = round(post_sr, 4)
+        elif tok_pct > 20:
+            metric = "avg_tokens"
+            before = round(pre_avg, 2)
+            after = round(post_avg, 2)
+        else:
+            return False  # No degradation detected
+
+        # 8. Perform rollback
+        await ConfigTunerService.revert_config(db, tenant_id, agent_type)
+
+        # 9. Log rollback
+        detail_parts = []
+        if metric == "success_rate":
+            detail_parts.append(
+                f"Success rate dropped from {before*100:.1f}% "
+                f"to {after*100:.1f}%."
+            )
+        else:
+            detail_parts.append(
+                f"Average tokens increased from {before:.0f} "
+                f"to {after:.0f}."
+            )
+        log = OptimizationLog(
+            tenant_id=tenant_id,
+            agent_type=agent_type,
+            metric=metric,
+            before_value=before,
+            after_value=after,
+            adjustment={
+                "suggestion": "rollback",
+                "detail": (
+                    f"Auto-detected degradation and rolled back from config "
+                    f"version {current['version']}. {' '.join(detail_parts)}"
+                ),
+            },
+        )
+        db.add(log)
+        await db.flush()
+        return True
 
     # ── Internal helpers ────────────────────────────────────────────────────
 

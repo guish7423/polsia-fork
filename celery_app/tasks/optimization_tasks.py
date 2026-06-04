@@ -9,6 +9,7 @@ from celery import shared_task
 
 from app.core.database import async_session
 from app.models.tenant import Tenant
+from app.services.config_tuner import ConfigTunerService
 from app.services.self_optimizer import SelfOptimizerService
 
 
@@ -42,6 +43,11 @@ def run_weekly_optimization(self):
                     )
                     if log is not None:
                         total_optimizations += 1
+
+                    # Check for degradation and auto-rollback if needed
+                    await ConfigTunerService.check_and_rollback(
+                        db, tenant.id, agent_type,
+                    )
 
             await db.commit()
             return {"optimizations_performed": total_optimizations}

@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     the middleware skips all checks and passes requests through."""
     """Master switch for quota enforcement.  When ``False`` all checks pass."""
 
+    # Self-optimization
+    self_optimization_enabled: bool = True
+    """Master switch for the SelfOptimizerService. When ``False``,
+    ``SelfOptimizerService.optimize_agent`` returns ``None``."""
+
     # Config tuner (auto-optimization / Phase D)
     config_tuner_enabled: bool = True
     """Master switch for generation config auto-tuning. When ``False``,

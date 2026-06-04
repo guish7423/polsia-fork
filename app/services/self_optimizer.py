@@ -210,6 +210,25 @@ class SelfOptimizerService:
         )
         db.add(log)
         await db.flush()
+
+        # Auto-apply generation config tuning if the suggestion matches
+        if (
+            adjustment.get("suggestion") == "generation_config_tuning"
+            and settings.config_tuner_enabled
+        ):
+            from app.services.config_tuner import ConfigTunerService
+
+            config = await ConfigTunerService.auto_tune(
+                db,
+                tenant_id=tenant_id,
+                agent_type=agent_type,
+                suggestion=adjustment,
+            )
+            if config is not None:
+                adjustment["applied"] = True
+                adjustment["gen_config_version"] = config.version
+                log.adjustment = adjustment
+
         return log
 
     @staticmethod
