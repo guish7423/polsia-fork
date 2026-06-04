@@ -109,7 +109,9 @@ def run_in_container(
             stdout, stderr, exit_code, cid = _try_docker_sdk(
                 image, command, cpu_limit, memory_limit, timeout,
             )
-        except ImportError:
+        except (ImportError, OSError, Exception) as _sdk_err:
+            # Fall through to subprocess when docker SDK is unavailable
+            # (ImportError = SDK not installed, OSError/DockerException = daemon not running)
             stdout, stderr, exit_code, cid = _try_subprocess(
                 image, command, cpu_limit, memory_limit, timeout,
             )
