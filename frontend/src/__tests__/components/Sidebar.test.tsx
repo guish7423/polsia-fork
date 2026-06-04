@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 // Mock next/navigation
 jest.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
+  useRouter: () => ({ push: jest.fn() }),
 }));
 
 // Mock next/link
@@ -41,6 +42,7 @@ jest.mock("@/lib/i18n", () => ({
         "nav.group.system": "System",
         "brand.subtitle": "AI Agent Platform",
         "nav.lang": "中文",
+        "nav.search": "Search",
       };
       return map[key] ?? key;
     },
@@ -78,5 +80,10 @@ describe("Sidebar", () => {
   it("shows the app title", () => {
     render(<Sidebar />);
     expect(screen.getByText("Polsia")).toBeInTheDocument();
+  });
+
+  it("renders search button", () => {
+    render(<Sidebar />);
+    expect(screen.getByText("Search")).toBeInTheDocument();
   });
 });

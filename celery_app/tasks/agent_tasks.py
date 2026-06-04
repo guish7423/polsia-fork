@@ -9,6 +9,9 @@ from sqlalchemy import select, func
 
 from app.services.weekly_report_service import generate_and_email_report
 
+# ─── Consecutive failure tracker ───────────────────────────────────────────────
+
+_consecutive_failures: dict[str, int] = {}
 
 # ─── Scheduler-aware dispatch ────────────────────────────────────────────────
 
@@ -303,6 +306,9 @@ def run_agent(self, agent_type: str, context: dict | None = None, task_id: int |
                 except Exception:
                     pass
 
+                # ── Reset consecutive failure counter on success ───────────
+                _consecutive_failures.pop(agent_type, None)
+
                 return result
 
             except Exception as exc:
@@ -343,6 +349,20 @@ def run_agent(self, agent_type: str, context: dict | None = None, task_id: int |
                     )
                 except Exception:
                     pass
+
+                # ── Alert injection: 3 consecutive failures ───────────────
+                _consecutive_failures[agent_type] = _consecutive_failures.get(agent_type, 0) + 1
+                if _consecutive_failures[agent_type] >= 3:
+                    _consecutive_failures[agent_type] = 0
+                    try:
+                        from app.services.alert_service import AlertService
+                        await AlertService.from_agent_error(
+                            db, tenant_id=_tenant_id,
+                            source=f"agent:{agent_type}",
+                            error_count=_consecutive_failures[agent_type],  # 0 after reset
+                        )
+                    except Exception:
+                        pass
 
                 raise  # Let Celery retry handle this
 
@@ -441,6 +461,8 @@ async def _run_agent_with_checkpoint(
                 pass
 
             # 5️⃣ Update run on success
+            # ── Reset consecutive failure counter on success ───────────────
+            _consecutive_failures.pop(agent_type, None)
             run.status = "completed"
             run.output = result
             run.ended_at = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
@@ -449,6 +471,20 @@ async def _run_agent_with_checkpoint(
             return result
 
         except Exception as exc:
+            # ── Alert injection: 3 consecutive failures ───────────────────
+            _consecutive_failures[agent_type] = _consecutive_failures.get(agent_type, 0) + 1
+            if _consecutive_failures[agent_type] >= 3:
+                _consecutive_failures[agent_type] = 0
+                try:
+                    from app.services.alert_service import AlertService
+                    await AlertService.from_agent_error(
+                        db, tenant_id=_cp_tenant_id,
+                        source=f"agent:{agent_type}",
+                        error_count=3,
+                    )
+                except Exception:
+                    pass
+
             # 5️⃣b Fire on_agent_error hook
             try:
                 await call_hooks(

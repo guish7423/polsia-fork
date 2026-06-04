@@ -8,11 +8,14 @@ All checks are scoped to the **current calendar month**.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.models.agent_run import AgentRun
 from app.models.model_call import ModelCall
@@ -57,12 +60,16 @@ async def check_agent_quota(db: AsyncSession, tenant_id: int) -> QuotaResult:
     tenant = await db.get(Tenant, tenant_id)
     limit = tenant.agents_limit if tenant else 0
 
+    usage_pct = count / limit if limit else 1.0
+    # ── Alert injection: quota > 90% ──────────────────────────────────────
+    if usage_pct > 0.9 and tenant_id > 0:
+        await _try_fire_quota_alert(db, tenant_id, "agent", usage_pct)
     return QuotaResult(
         allowed=count < limit,
         reason=None if count < limit else "agent_limit_exceeded",
         current=count,
         limit=limit,
-        usage_pct=count / limit if limit else 1.0,
+        usage_pct=usage_pct,
     )
 
 
@@ -78,13 +85,18 @@ async def check_tasks_monthly_quota(db: AsyncSession, tenant_id: int) -> QuotaRe
 
     tenant = await db.get(Tenant, tenant_id)
     limit = tenant.tasks_monthly_limit if tenant else 0
+    usage_pct = count / limit if limit else 1.0
+
+    # ── Alert injection: task quota > 90% ─────────────────────────────────
+    if usage_pct > 0.9 and tenant_id > 0:
+        await _try_fire_quota_alert(db, tenant_id, "tasks", usage_pct)
 
     return QuotaResult(
         allowed=count < limit,
         reason=None if count < limit else "tasks_monthly_limit_exceeded",
         current=count,
         limit=limit,
-        usage_pct=count / limit if limit else 1.0,
+        usage_pct=usage_pct,
     )
 
 
@@ -100,13 +112,18 @@ async def check_token_budget(db: AsyncSession, tenant_id: int) -> QuotaResult:
 
     tenant = await db.get(Tenant, tenant_id)
     limit = tenant.tokens_monthly_limit if tenant else 0
+    usage_pct = (total or 0) / limit if limit else 1.0
+
+    # ── Alert injection: token quota > 90% ────────────────────────────────
+    if usage_pct > 0.9 and tenant_id > 0:
+        await _try_fire_quota_alert(db, tenant_id, "tokens", usage_pct)
 
     return QuotaResult(
         allowed=(total or 0) < limit,
         reason=None if (total or 0) < limit else "token_budget_exceeded",
         current=total or 0,
         limit=limit,
-        usage_pct=(total or 0) / limit if limit else 1.0,
+        usage_pct=usage_pct,
     )
 
 
@@ -125,14 +142,44 @@ async def check_cost_budget(db: AsyncSession, tenant_id: int) -> QuotaResult:
 
     tenant = await db.get(Tenant, tenant_id)
     limit = tenant.cost_monthly_limit_usd if tenant else 0
+    usage_pct = float(total) / limit if limit else 1.0
+
+    # ── Alert injection: cost quota > 90% ─────────────────────────────────
+    if usage_pct > 0.9 and tenant_id > 0:
+        await _try_fire_quota_alert(db, tenant_id, "cost", usage_pct)
 
     return QuotaResult(
         allowed=float(total) < limit,
         reason=None if float(total) < limit else "cost_budget_exceeded",
         current=round(float(total), 6),
         limit=limit,
-        usage_pct=float(total) / limit if limit else 1.0,
+        usage_pct=usage_pct,
     )
+
+
+# ─── Alert injection helper ─────────────────────────────────────────────────────
+
+async def _try_fire_quota_alert(
+    db: AsyncSession,
+    tenant_id: int,
+    dimension: str,
+    usage_pct: float,
+) -> None:
+    """Fire-and-forget quota warning alert (lazy import, fail-open)."""
+    try:
+        from app.services.alert_service import AlertService
+
+        await AlertService.from_quota_warning(
+            db,
+            tenant_id=tenant_id,
+            source=f"quota:{dimension}",
+            usage_pct=usage_pct,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to fire quota alert for dimension=%s (tenant=%d)",
+            dimension, tenant_id,
+        )
 
 
 # ─── Dashboard convenience ────────────────────────────────────────────────────

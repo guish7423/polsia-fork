@@ -1,11 +1,14 @@
 """Model usage analytics service — query and aggregate ModelCall data."""
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.model_call import ModelCall
+
+logger = logging.getLogger(__name__)
 
 
 async def record_model_call(
@@ -286,6 +289,7 @@ async def get_task_category_breakdown(
         ORDER BY cost_usd DESC
     """
     rows = (await db.execute(text(sql), params)).all()
+
     return [
         {
             "task_category": r.task_category,
@@ -296,3 +300,61 @@ async def get_task_category_breakdown(
         }
         for r in rows
     ]
+
+
+# ─── Cost anomaly detection ──────────────────────────────────────────────────
+
+
+async def check_cost_anomaly(
+    db: AsyncSession,
+    tenant_id: int,
+    threshold_pct: float = 50.0,
+) -> dict | None:
+    """Compare today's cost vs yesterday's; fire alert if increase > threshold.
+
+    Returns anomaly info dict if an alert was fired, ``None`` otherwise.
+    Fail-open: exceptions are logged, never propagated.
+    """
+    try:
+        from app.services.alert_service import AlertService
+
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
+
+        # Today's cost
+        today_q = select(func.coalesce(func.sum(ModelCall.cost_usd), 0.0))
+        if tenant_id > 0:
+            today_q = today_q.where(ModelCall.tenant_id == tenant_id)
+        today_q = today_q.where(ModelCall.created_at >= today_start)
+        today_cost = (await db.execute(today_q)).scalar() or 0.0
+
+        # Yesterday's cost
+        yesterday_q = select(func.coalesce(func.sum(ModelCall.cost_usd), 0.0))
+        if tenant_id > 0:
+            yesterday_q = yesterday_q.where(ModelCall.tenant_id == tenant_id)
+        yesterday_q = yesterday_q.where(
+            ModelCall.created_at >= yesterday_start,
+            ModelCall.created_at < today_start,
+        )
+        yesterday_cost = (await db.execute(yesterday_q)).scalar() or 0.0
+
+        if yesterday_cost > 0 and today_cost > yesterday_cost * (1 + threshold_pct / 100):
+            increase_pct = ((today_cost - yesterday_cost) / yesterday_cost) * 100
+            await AlertService.from_cost_anomaly(
+                db,
+                tenant_id=tenant_id,
+                source=f"cost_anomaly:tenant_{tenant_id}",
+                increase_pct=increase_pct,
+            )
+            return {
+                "anomaly": True,
+                "increase_pct": round(float(increase_pct), 1),
+                "today_cost": round(float(today_cost), 6),
+                "yesterday_cost": round(float(yesterday_cost), 6),
+            }
+
+        return None
+    except Exception:
+        logger.exception("check_cost_anomaly failed")
+        return None

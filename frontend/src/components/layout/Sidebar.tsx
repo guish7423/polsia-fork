@@ -17,11 +17,13 @@ import {
   Plug,
   Puzzle,
   ScrollText,
+  Search,
   Settings,
   Store,
   Twitter,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { GlobalSearch } from "./GlobalSearch";
 
 type NavItem = { href: string; labelKey: string; icon: typeof BarChart2 };
 
@@ -61,6 +63,7 @@ export function Sidebar() {
   const { locale, setLocale, t } = useI18n();
 
   return (
+    <>
     <aside className="w-56 min-h-screen bg-gray-900 text-white flex flex-col">
       <div className="p-4 border-b border-gray-700">
         <h1 className="text-lg font-bold text-indigo-400">Polsia</h1>
@@ -94,7 +97,17 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-      <div className="p-3 border-t border-gray-700">
+      <div className="p-3 border-t border-gray-700 space-y-1">
+        <button
+          onClick={() => {
+            // Dispatch Cmd+K to trigger GlobalSearch
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }));
+          }}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+        >
+          <Search size={16} />
+          {t("nav.search")}
+        </button>
         <button
           onClick={() => setLocale(locale === "en" ? "zh" : "en")}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-sm text-gray-300 hover:bg-gray-700 transition-colors"
@@ -104,5 +117,7 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+      <GlobalSearch />
+    </>
   );
 }

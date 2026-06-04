@@ -18,6 +18,22 @@
 | Phase B (Agent Mesh) | ✅ Done | A2A messages, Capability Registry, Mesh Bus, REST API, Celery |
 | Phase C (True AI OS) | ✅ Done | Sandbox, Audit Chain, Quota Enforcement, Scheduler, Marketplace, Self-Opt |
 
+## Active Feature: neural-hub-console-v2 (Phase: Orchestration)
+| | Task | Status |
+|--|------|--------|
+| ✅ | 01 - Alert ORM/Service/API | Done |
+| ✅ | 02 - System Health API | Done + Merged |
+| ✅ | 04 - AgentTaskQuota | Done + Merged |
+| ✅ | 05 - Agent SSE | Done |
+| ✅ | 06 - Agent FlowLog | Done + Merged |
+| ✅ | 07 - Notification API | Done |
+| ✅ | 08 - CMDK Global Search | Done + Merged |
+| ✅ | 09 - Notification ORM/API | Done + Merged |
+| ⏳ | 03 - (pending) | Pending |
+| ⏳ | 10 - (pending) | Pending |
+| ⏳ | 11 - Dashboard | Blocked by 03, 10 |
+| ⏳ | 12 - QA | Blocked by 11 |
+
 ## Backlog
 - Push local commits to remote (pending WSL2 GitHub SSH fix)
 - Phase D: Self-optimization auto-apply (A/B test framework)

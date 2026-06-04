@@ -23,6 +23,7 @@ from app.models.sandbox_execution import SandboxExecution
 from app.models.optimization_log import OptimizationLog
 from app.models.agent_gen_config import AgentGenConfig
 from app.models.alert import Alert
+from app.models.notification import Notification
 
 __all__ = [
     "Base",
@@ -54,4 +55,5 @@ __all__ = [
     "OptimizationLog",
     "AgentGenConfig",
     "Alert",
+    "Notification",
 ]

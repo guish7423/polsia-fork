@@ -1,16 +1,42 @@
 """AlertService — 告警生命周期管理。
 
-支持按 tenant 隔离的创建、查询、解析和自动过期。
+支持按 tenant 隔离的创建、查询、解析、自动过期和触发器注入。
+
+触发器方法（from_*）自带 1h 去重和 circuit breaker（连续 3 次失败后静默降级）。
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.alert import Alert
+from app.services.notification_service import NotificationService
+
+logger = logging.getLogger(__name__)
+
+
+class _CircuitBreaker:
+    """Tracks consecutive failures per key; opens after threshold."""
+
+    def __init__(self, threshold: int = 3) -> None:
+        self._threshold = threshold
+        self._failures: dict[str, int] = {}
+
+    def record_failure(self, key: str) -> None:
+        self._failures[key] = self._failures.get(key, 0) + 1
+
+    def record_success(self, key: str) -> None:
+        self._failures.pop(key, None)
+
+    def is_open(self, key: str) -> bool:
+        return self._failures.get(key, 0) >= self._threshold
+
+
+_alert_cb = _CircuitBreaker()
 
 
 class AlertService:
@@ -39,6 +65,16 @@ class AlertService:
         db.add(alert)
         await db.flush()
         await db.refresh(alert)
+
+        # 异步创建通知 — 失败不影响告警创建，异常内部已隔离
+        await NotificationService.create(
+            db,
+            tenant_id=tenant_id,
+            notification_type="alert",
+            title=f"Alert: {message}",
+            body=f"[{severity}] {message}",
+        )
+
         return alert
 
     @staticmethod
@@ -134,6 +170,188 @@ class AlertService:
 
         await db.flush()
         return len(alerts)
+
+    # ── Dedup helper ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def _has_recent_active_alert(
+        db: AsyncSession,
+        tenant_id: int,
+        source: str,
+        alert_type: str,
+        window_hours: int = 1,
+    ) -> bool:
+        """Check if a pending alert with the same source + type exists within the window."""
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        query = select(Alert).where(
+            Alert.tenant_id == tenant_id,
+            Alert.source == source,
+            Alert.alert_type == alert_type,
+            Alert.status == "pending",
+            Alert.created_at >= cutoff,
+        )
+        result = await db.execute(query)
+        return result.scalar() is not None
+
+    # ── Trigger methods (fire-and-forget, fail-open) ──────────────────────────
+
+    @staticmethod
+    async def from_agent_error(
+        db: AsyncSession,
+        tenant_id: int,
+        source: str,
+        error_count: int,
+        message: str | None = None,
+        metadata: dict | None = None,
+    ) -> Alert | None:
+        """Create a **critical** alert for an agent with repeated errors.
+
+        Auto-dedup: same source + ``agent_error`` within 1h → return None.
+        Circuit breaker: 3 consecutive failures → silent degrade.
+        """
+        cb_key = f"from_agent_error:{source}"
+        if _alert_cb.is_open(cb_key):
+            logger.debug("Circuit breaker open for from_agent_error:%s", source)
+            return None
+
+        try:
+            if await AlertService._has_recent_active_alert(
+                db, tenant_id, source, "agent_error",
+            ):
+                return None
+
+            alert = await AlertService.create_alert(
+                db,
+                tenant_id=tenant_id,
+                alert_type="agent_error",
+                severity="critical",
+                message=message or f"Agent error count: {error_count}",
+                source=source,
+                metadata_json=metadata,
+            )
+            _alert_cb.record_success(cb_key)
+            return alert
+        except Exception:
+            _alert_cb.record_failure(cb_key)
+            logger.exception("from_agent_error failed for source=%s", source)
+            return None
+
+    @staticmethod
+    async def from_quota_warning(
+        db: AsyncSession,
+        tenant_id: int,
+        source: str,
+        usage_pct: float,
+        message: str | None = None,
+        metadata: dict | None = None,
+    ) -> Alert | None:
+        """Create a **warning** alert for quota approaching the limit.
+
+        Auto-dedup: same source + ``quota_warning`` within 1h → return None.
+        """
+        cb_key = f"from_quota_warning:{source}"
+        if _alert_cb.is_open(cb_key):
+            return None
+
+        try:
+            if await AlertService._has_recent_active_alert(
+                db, tenant_id, source, "quota_warning",
+            ):
+                return None
+
+            alert = await AlertService.create_alert(
+                db,
+                tenant_id=tenant_id,
+                alert_type="quota_warning",
+                severity="warning",
+                message=message or f"Quota usage at {usage_pct:.1f}%",
+                source=source,
+                metadata_json=metadata,
+            )
+            _alert_cb.record_success(cb_key)
+            return alert
+        except Exception:
+            _alert_cb.record_failure(cb_key)
+            logger.exception("from_quota_warning failed for source=%s", source)
+            return None
+
+    @staticmethod
+    async def from_task_failure(
+        db: AsyncSession,
+        tenant_id: int,
+        source: str,
+        fail_count: int,
+        message: str | None = None,
+        metadata: dict | None = None,
+    ) -> Alert | None:
+        """Create a **warning** alert for batch task failures.
+
+        Auto-dedup: same source + ``task_failure`` within 1h → return None.
+        """
+        cb_key = f"from_task_failure:{source}"
+        if _alert_cb.is_open(cb_key):
+            return None
+
+        try:
+            if await AlertService._has_recent_active_alert(
+                db, tenant_id, source, "task_failure",
+            ):
+                return None
+
+            alert = await AlertService.create_alert(
+                db,
+                tenant_id=tenant_id,
+                alert_type="task_failure",
+                severity="warning",
+                message=message or f"Task failures: {fail_count}",
+                source=source,
+                metadata_json=metadata,
+            )
+            _alert_cb.record_success(cb_key)
+            return alert
+        except Exception:
+            _alert_cb.record_failure(cb_key)
+            logger.exception("from_task_failure failed for source=%s", source)
+            return None
+
+    @staticmethod
+    async def from_cost_anomaly(
+        db: AsyncSession,
+        tenant_id: int,
+        source: str,
+        increase_pct: float,
+        message: str | None = None,
+        metadata: dict | None = None,
+    ) -> Alert | None:
+        """Create an **info** alert for cost spikes compared to yesterday.
+
+        Auto-dedup: same source + ``cost_anomaly`` within 1h → return None.
+        """
+        cb_key = f"from_cost_anomaly:{source}"
+        if _alert_cb.is_open(cb_key):
+            return None
+
+        try:
+            if await AlertService._has_recent_active_alert(
+                db, tenant_id, source, "cost_anomaly",
+            ):
+                return None
+
+            alert = await AlertService.create_alert(
+                db,
+                tenant_id=tenant_id,
+                alert_type="cost_anomaly",
+                severity="info",
+                message=message or f"Cost increase: {increase_pct:.1f}% vs yesterday",
+                source=source,
+                metadata_json=metadata,
+            )
+            _alert_cb.record_success(cb_key)
+            return alert
+        except Exception:
+            _alert_cb.record_failure(cb_key)
+            logger.exception("from_cost_anomaly failed for source=%s", source)
+            return None
 
     @staticmethod
     async def count_active(

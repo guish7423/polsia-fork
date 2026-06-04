@@ -123,6 +123,19 @@ async def update_task_status(
     if error_message is not None:
         task.error_message = error_message
     await db.flush()
+
+    # ── Alert injection: task failure (fail-open, lazy import) ────────────
+    if status in ("error", "failed") and error_message:
+        try:
+            from app.services.alert_service import AlertService
+            await AlertService.from_task_failure(
+                db, tenant_id=tenant_id or 0,
+                source="task_service",
+                fail_count=1,
+            )
+        except Exception:
+            pass
+
     return task
 
 

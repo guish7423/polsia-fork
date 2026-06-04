@@ -117,6 +117,14 @@ export type ActivityEvent = {
   };
 };
 
+// ─── Agent SSE Stream ──────────────────────────────────────────────────────────
+
+export type AgentStepEvent = {
+  step: "thinking" | "tool_call" | "llm_call" | "result";
+  content: string;
+  ts: string;
+};
+
 // ─── Quota Dashboard ─────────────────────────────────────────────────────────
 
 export type QuotaDimension = {
@@ -269,6 +277,38 @@ export type DashboardSummary = {
   kpis: Record<string, unknown>;
   last_report_date: string | null;
 };
+
+// ─── Global Search ──────────────────────────────────────────────────────────
+
+export type SearchResultItem = {
+  type: "task" | "agent" | "alert" | "run";
+  id: number;
+  title: string;
+  description: string;
+  url: string;
+  score: number;
+};
+
+export type SearchResultGroup = {
+  type: string;
+  label: string;
+  items: SearchResultItem[];
+};
+
+export type SearchResponse = {
+  results: SearchResultItem[];
+};
+
+export async function searchApi(
+  q: string,
+  types?: string,
+  limit?: number,
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({ q });
+  if (types) params.set("types", types);
+  if (limit !== undefined) params.set("limit", String(limit));
+  return apiFetch<SearchResponse>(`/search?${params}`);
+}
 
 export type Task = {
   id: number;

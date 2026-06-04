@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useAgentStatus } from "@/hooks/useAgentStatus";
 import { api } from "@/lib/api";
 import { PageTitle } from "@/components/PageTitle";
+import { FlowLog } from "@/components/agents/FlowLog";
 
 const STATUS_STYLE: Record<string, string> = {
   idle: "bg-gray-600/40 text-gray-300",
@@ -23,6 +24,7 @@ export default function AgentsPage() {
   const { agents, loading, todayStats } = useAgentStatus(15000); // Poll every 15s
   const [triggering, setTriggering] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [liveLogAgent, setLiveLogAgent] = useState<string | null>(null);
   const [msgType, setMsgType] = useState<"info" | "error">("info");
 
   const trigger = async (agentType: string) => {
@@ -103,9 +105,24 @@ export default function AgentsPage() {
           ))}
         </div>
       ) : (
-        <div className="space-y-2">
-          {agents.map(renderCard)}
-        </div>
+        <>
+          {agents.length === 0 ? (
+            <p className="text-gray-400 text-center py-12">No agents found.</p>
+          ) : (
+            <div className="space-y-2">
+              {agents.map(renderCard)}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Live Log slide panel */}
+      {liveLogAgent && (
+        <FlowLog
+          agentType={liveLogAgent}
+          open={true}
+          onClose={() => setLiveLogAgent(null)}
+        />
       )}
     </div>
   );
@@ -158,6 +175,12 @@ export default function AgentsPage() {
               Detail
             </Link>
           )}
+          <button
+            onClick={() => setLiveLogAgent(s.agent_type)}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-emerald-400 text-xs rounded-md transition-colors"
+          >
+            ▶ Live Log
+          </button>
           <button
             onClick={() => trigger(s.agent_type)}
             disabled={triggering === s.agent_type}
