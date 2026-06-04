@@ -34,3 +34,4 @@ data/chroma/
 celerybeat-schedule
 *.db
 .sandbox/
+*.tsbuildinfo
